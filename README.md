@@ -1,4 +1,4 @@
-# Reel-to-Trip (working name)
+# RelaySnap
 
 Turn the travel reels you and your friends already saved into one group itinerary — with a local **hidden gem** next to every viral spot.
 
