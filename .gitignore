@@ -32,3 +32,10 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 *.log
+
+# Tooling
+*.tsbuildinfo
+.firebase/
+*-debug.log
+.genkit/
+.firebaserc

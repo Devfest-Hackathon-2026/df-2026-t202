@@ -1,38 +1,94 @@
-# DevFest Hackathon 2026 提出用リポジトリ
+# Reel-to-Trip (working name)
 
-  DevFest Hackathon 2026 のチームの **最終提出用** リポジトリです。提出期限までに、作品のコードと資料をこのリポジトリに置いてください。
+Turn the travel reels you and your friends already saved into one group itinerary — with a local **hidden gem** next to every viral spot.
 
-  このリポジトリは **公開（public）** です。開催中も、運営・審査員・ほかの参加者が見られます。
+DevFest Hackathon 2026 · Category: **Tourism** · Built on Google Cloud, Firebase, Gemini and Google Maps Platform.
 
-  ## はじめに
+> Deployed URL: _add here before submission_
 
-  1. GitHub から届いた招待を受け入れてください（招待の期限は 7 日です）
-  2. このリポジトリを clone して、提出物を置いてください
+## What it does
 
-  招待の期限が切れたときや、メンバーが変わったときは、運営に連絡してください。
+1. **Reel import** — paste YouTube Shorts / Instagram / TikTok links. Gemini extracts places, food, activities and vibe.
+2. **Swipe deck** — Tinder-style cards to learn what each person likes.
+3. **Group trips** — invite friends, share reels, everyone swipes the same deck; we find the overlap.
+4. **Itinerary + map** — day-by-day plan on Google Maps.
+5. **Hidden gem card** — next to each popular stop, one nearby local place: rating ≥ 4.3, 20–299 reviews, within ~800 m. An estimate from ratings, not crowd data.
+6. **Booking** — hand-off to a booking provider (stretch goal).
 
-  ## 開発用のリポジトリは別に作ることをおすすめします
+## Repo layout
 
-  このリポジトリでは **GitHub Actions と GitHub Pages が使えません**。CI やデプロイ、Pages での公開をしたいときは、チームで開発用のリポジトリを別に作ってください。
+```
+apps/web         Next.js (App Router) + Tailwind — the PWA (Firebase App Hosting)
+apps/api         Hono + Genkit (Gemini) on Cloud Run
+packages/shared  Zod schemas, reel-link parser, hidden gem rule (shared by web + api)
+firestore.rules  Security rules (members-only trips)
+storage.rules    Upload rules
+docs/            Hackathon repo rules (from the organizers)
+```
 
-  - 開発用のリポジトリは、チームのメンバーのアカウントや、チームで作った Organization に作ってください
-  - 開発はそちらで進めて、提出期限までに最終版のコードと資料をこのリポジトリに push してください
-  - 審査はこのリポジトリの内容で行います。開発用のリポジトリにしかないものは、審査の対象になりません
-  - デプロイした作品の URL があれば、この README に書いてください
+## Google services
 
-  ## 秘密情報をコミットしない
+| Service | Used for |
+| --- | --- |
+| Gemini (via Genkit) | Watching reels, planning itineraries, explaining picks |
+| Places API (New), Routes API, Maps JavaScript API | Cards, opening hours, hidden gems, travel times, map page |
+| Cloud Run | API + reel worker |
+| Firestore | Trips, chat, swipes (real-time) |
+| Cloud Storage | Video uploads (Instagram/TikTok fallback) |
+| Firebase Auth + App Check | Google sign-in, quota protection |
+| Secret Manager | API keys |
+| Firebase App Hosting | Web app |
+| Cloud Tasks | Async reel analysis (next step) |
 
-  API キー・パスワード・サービスアカウントの鍵などは、**絶対にコミットしないでください**。公開リポジトリなので、push
-  した時点で誰でも見られます。開発用のリポジトリから持ってくるときも、履歴ごと push すると、過去のコミットに含まれる秘密情報も公開されます。
+## Run locally
 
-  - 秘密情報は `.env` や `.dev.vars` などに書き、コミットしない（`.gitignore` に入れてあります）
-  - 誤って push したら、すぐにキー（鍵）を無効にして作り直し、運営に連絡してください。履歴から消すだけでは不十分です
-  - GitHub の push protection が、よく知られた形式のキーの push を止めることがあります。止められたら、そのキーをコミットから外してください
+Requirements: Node 22+, pnpm 10 (`corepack enable`), Firebase CLI (`npm i -g firebase-tools`).
 
-  ## 提出
+```bash
+pnpm install
 
-  提出の方法と締切は、運営からの案内に従ってください。提出期限を過ぎると、このリポジトリは読み取り専用になり、push できなくなります。
+# API
+cp apps/api/.env.example apps/api/.env          # add GEMINI_API_KEY
+# Web
+cp apps/web/.env.example apps/web/.env.local    # add Firebase web config
 
-  ## ライセンス
+# Option A — fastest: no Firebase project yet
+#   apps/api/.env      DEV_SKIP_AUTH=true, FIRESTORE_EMULATOR_HOST=127.0.0.1:8081
+#   apps/web/.env.local NEXT_PUBLIC_DEV_SKIP_AUTH=true
+pnpm emulators        # terminal 1 (Firestore/Auth/Storage emulators, UI on :4000)
+pnpm dev              # terminal 2 (web :3000, api :8080)
+```
 
-  [MIT License](LICENSE) です。ほかのライセンスにしたいときは、LICENSE を書き換えてください。
+Useful scripts: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm genkit:ui` (Genkit Developer UI to test prompts).
+
+## API
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/healthz` | Health check |
+| POST | `/v1/reels` | `{ url, tripId?, caption? }` → Gemini extraction. Requires Firebase ID token. Cached by video id. |
+
+## Deploy (Google Cloud)
+
+```bash
+# API → Cloud Run (build from repo root)
+gcloud run deploy rtt-api --source . --region asia-northeast1 \
+  --set-secrets GEMINI_API_KEY=gemini-api-key:latest,MAPS_SERVER_API_KEY=maps-server-key:latest \
+  --set-env-vars CORS_ORIGINS=https://YOUR-WEB-DOMAIN,REQUIRE_APP_CHECK=true
+# (uses apps/api/Dockerfile — pass --dockerfile or build with Cloud Build)
+
+# Rules
+firebase deploy --only firestore:rules,storage
+
+# Web → Firebase App Hosting: create a backend in the console, root dir apps/web
+```
+
+## Security notes
+
+- No secrets in this repo — `.env*` files are git-ignored. Keys live in Secret Manager.
+- Firestore rules: trips and everything under them are readable only by members.
+- The API only accepts YouTube / Instagram / TikTok links (SSRF guard) and treats reel text as data, never instructions.
+
+## License
+
+[MIT](LICENSE)

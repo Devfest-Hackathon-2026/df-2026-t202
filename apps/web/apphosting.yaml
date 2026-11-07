@@ -1,0 +1,20 @@
+# Firebase App Hosting config for apps/web (runs on Cloud Run underneath).
+# Set the app root to apps/web when creating the backend in the Firebase console.
+runConfig:
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  - variable: NEXT_PUBLIC_API_URL
+    value: https://REPLACE-with-cloud-run-api-url
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: firebase-web-api-key
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_MAPS_BROWSER_KEY
+    secret: maps-browser-key
+    availability: [BUILD, RUNTIME]
+  # Add the remaining NEXT_PUBLIC_FIREBASE_* values the same way.

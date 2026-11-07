@@ -1,0 +1,73 @@
+rules_version = '2';
+
+// Clients only touch their own profile and trips they belong to.
+// Backend-only data (reel cache, invites, deck, itinerary) is written by the
+// Cloud Run service account via the Admin SDK, which bypasses these rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isMember(tripId) {
+      return signedIn() &&
+        request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+    }
+    function isOwner(tripId) {
+      return signedIn() &&
+        get(/databases/$(database)/documents/trips/$(tripId)).data.ownerId == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /trips/{tripId} {
+      allow read: if isMember(tripId);
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid];
+      // Owner edits settings; members are added by the backend (invite flow).
+      allow update: if isOwner(tripId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.memberIds == resource.data.memberIds;
+      allow delete: if isOwner(tripId);
+
+      match /messages/{msgId} {
+        allow read: if isMember(tripId);
+        allow create: if isMember(tripId)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 2000;
+        allow update, delete: if false;
+      }
+
+      match /reels/{reelId} {
+        allow read: if isMember(tripId);
+        allow write: if false; // added through the API (validated link)
+      }
+
+      match /deck/{cardId} {
+        allow read: if isMember(tripId);
+        allow write: if false;
+      }
+
+      // Swipe id is `${uid}_${cardId}` so each member votes once per card.
+      match /swipes/{swipeId} {
+        allow read: if isMember(tripId);
+        allow create, update: if isMember(tripId)
+          && request.resource.data.uid == request.auth.uid
+          && swipeId == request.auth.uid + '_' + request.resource.data.cardId
+          && request.resource.data.liked is bool;
+        allow delete: if false;
+      }
+
+      match /itinerary/{dayId} {
+        allow read: if isMember(tripId);
+        allow write: if false;
+      }
+    }
+
+    // Shared reel cache and invites: backend only.
+    match /reels/{reelId} { allow read, write: if false; }
+    match /invites/{token} { allow read, write: if false; }
+  }
+}
