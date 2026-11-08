@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from app import flow
@@ -147,3 +148,16 @@ def test_answer_text_in_both_languages():
     assert flow.answer_text("budget", None, slots, "ja") == "50,000 JPY（1人あたり）"
     assert flow.answer_text("transport", None, slots, "en") == "car, from Fukuoka"
     assert flow.answer_text("dates", "skip", slots, "ja") == "まだ決めていない"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_search_place_wraps_http_and_key_errors(monkeypatch, anyio_backend):
+    for exc in (httpx.ConnectError("down"), RuntimeError("PLACES_API_KEY is not set")):
+
+        async def boom(query, lang, exc=exc):
+            raise exc
+
+        monkeypatch.setattr(flow, "_search_text_fallback", boom)
+        with pytest.raises(flow.PlaceLookupError):
+            await flow.search_place("Kyushu", "en")

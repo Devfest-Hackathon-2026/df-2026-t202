@@ -118,12 +118,17 @@ async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
     dest: PlaceRef | None = None
     origin: PlaceRef | None = None
     clarify = out.clarify[:MAX_AI_TEXT_LENGTH] if out and out.clarify else None
-    if out and out.updates.dest:
-        dest = await flow.search_place(out.updates.dest, lang)
-        if dest is None and not clarify:
-            clarify = flow.text_for("place_not_found", lang)
-    if out and out.updates.origin:
-        origin = await flow.search_place(out.updates.origin, lang)
+    try:
+        if out and out.updates.dest:
+            dest = await flow.search_place(out.updates.dest, lang)
+            if dest is None and not clarify:
+                clarify = flow.text_for("place_not_found", lang)
+        if out and out.updates.origin:
+            origin = await flow.search_place(out.updates.origin, lang)
+    except flow.PlaceLookupError:
+        # Places is down: keep the other updates, ask again for the place (no 500).
+        dest = origin = None
+        clarify = flow.text_for("place_lookup_failed", lang)
 
     trip_ref = db().collection("trips").document(trip_id)
 

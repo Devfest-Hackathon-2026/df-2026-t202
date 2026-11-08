@@ -189,6 +189,23 @@ async def test_place_not_found_asks_back(api, monkeypatch):
     assert "couldn't find" in last["text"] and last["ui"]["type"] == "dest"
 
 
+async def test_places_failure_asks_again_no_500(api, monkeypatch):
+    async def fake_run(slots, step, text, lang):
+        return ConciergeOutput.model_validate({"updates": {"dest": "Kyushu", "people": {"adult": 4}}})
+
+    async def broken_places(query, lang):
+        raise flow.PlaceLookupError
+
+    monkeypatch.setattr(concierge, "run", fake_run)
+    monkeypatch.setattr(flow, "search_place", broken_places)
+    trip_id = await new_trip(api, "ja")
+    resp = await api.post(f"/trips/{trip_id}/messages", json={"type": "text", "text": "九州に4人で"})
+    assert resp.status_code == 200 and resp.json() == {"asking": "dest"}
+    last = (await fs.list_messages(trip_id))[-1]
+    assert "もう一度" in last["text"] and last["ui"]["type"] == "dest"
+    assert (await fs.get_trip(trip_id))["slots"]["people"]["adult"] == 4  # other updates kept
+
+
 async def test_gemini_failure_gives_friendly_fallback(api, monkeypatch):
     async def broken(*args):
         raise LLMError("quota")

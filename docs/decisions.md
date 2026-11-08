@@ -221,3 +221,9 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Why:** Least privilege. The first deploy failed because the default compute account has no roles in this project.
 - **Decided by:** Nazmul (proposed by Claude) · 2026-11-08
 
+
+### D34. Places lookup failure ≠ "place not found"
+- **Chosen:** `flow.search_place` turns `httpx.HTTPError`, `RuntimeError` (missing key) and bad shapes into `PlaceLookupError`. The chat then replies "couldn't look that up, please try again", keeps the other updates and shows the same card.
+- **Rejected:** Letting it raise (a 500 for the user). Returning `None` (tells the user the place doesn't exist, which is wrong).
+- **Why:** Person B's `places.search_text` raises on failure by design (it retries once inside).
+- **Decided by:** Claude (requested by Person B) · 2026-11-08

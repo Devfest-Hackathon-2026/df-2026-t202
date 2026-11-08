@@ -6,6 +6,7 @@ search_place(), so it is easy to unit-test.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date
 from typing import Any
@@ -27,6 +28,10 @@ MAX_ITEM_LENGTH = 100
 
 class AnswerError(ValueError):
     """The card answer has the wrong shape. The API returns 400 with this message."""
+
+
+class PlaceLookupError(Exception):
+    """Places lookup failed (network, quota, missing key). Not the same as "no such place" (None)."""
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +61,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "place_not_found": {
         "en": "I couldn't find that place. Could you tell me the city or region?",
         "ja": "その場所が見つかりませんでした。都市名や地域名を教えてください。",
+    },
+    "place_lookup_failed": {
+        "en": "I couldn't look that place up right now. Please try again.",
+        "ja": "今は場所を調べられませんでした。もう一度お試しください。",
     },
     "skip": {"en": "Not decided yet", "ja": "まだ決めていない"},
     "none": {"en": "None", "ja": "なし"},
@@ -374,29 +383,32 @@ FIELD_MASK = "places.id,places.displayName,places.location,places.addressCompone
 
 
 async def search_place(query: str, lang: str) -> PlaceRef | None:
-    """Resolve free text like "Kyushu" to a place. Uses Person B's places.search_text when it exists."""
+    """Resolve free text like "Kyushu" to a place. Uses Person B's places.search_text when it exists.
+
+    Returns None when no place matches. Raises PlaceLookupError when the lookup itself fails
+    (search_text raises httpx.HTTPError after its retries, or RuntimeError when the key is missing).
+    """
     try:
         from app.services.places import search_text  # Person B
     except ImportError:
         search_text = _search_text_fallback
-    result = await search_text(query, lang)
-    return PlaceRef.model_validate(result) if result else None
+    try:
+        result = await search_text(query, lang)
+        return PlaceRef.model_validate(result) if result else None
+    except (httpx.HTTPError, RuntimeError, ValidationError) as e:
+        log.warning(json.dumps({"msg": "place_lookup_failed", "err": type(e).__name__}))
+        raise PlaceLookupError from e
 
 
 async def _search_text_fallback(query: str, lang: str) -> dict | None:
     key = get_settings().places_api_key
     if key is None:
-        log.warning('{"msg": "places_key_missing"}')
-        return None
+        raise RuntimeError("PLACES_API_KEY is not set")
     headers = {"X-Goog-Api-Key": key.get_secret_value(), "X-Goog-FieldMask": FIELD_MASK}
     body = {"textQuery": query[:200], "languageCode": _lang(lang), "pageSize": 1}
-    try:
-        async with httpx.AsyncClient(timeout=10) as http:
-            resp = await http.post(TEXT_SEARCH_URL, json=body, headers=headers)
-            resp.raise_for_status()
-    except httpx.HTTPError as e:
-        log.warning(f'{{"msg": "places_search_failed", "err": "{type(e).__name__}"}}')
-        return None
+    async with httpx.AsyncClient(timeout=10) as http:  # errors raise; search_place handles them
+        resp = await http.post(TEXT_SEARCH_URL, json=body, headers=headers)
+        resp.raise_for_status()
     places = resp.json().get("places") or []
     if not places:
         return None
