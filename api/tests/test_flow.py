@@ -8,6 +8,7 @@ import pytest
 
 from app import flow
 from app.models import STEP_ORDER, PlaceRef, Slots, SlotUpdates
+from app.services import places
 
 FIXTURES = Path(__file__).parent / "fixtures"
 KYUSHU = {"label": "Kyushu, Japan", "countryCode": "JP", "lat": 32.59, "lng": 130.8}
@@ -158,6 +159,6 @@ async def test_search_place_wraps_http_and_key_errors(monkeypatch, anyio_backend
         async def boom(query, lang, exc=exc):
             raise exc
 
-        monkeypatch.setattr(flow, "_search_text_fallback", boom)
+        monkeypatch.setattr(places, "search_text", boom)  # Person B's real search_text is used now
         with pytest.raises(flow.PlaceLookupError):
             await flow.search_place("Kyushu", "en")
