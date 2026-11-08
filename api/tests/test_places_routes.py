@@ -71,7 +71,8 @@ def test_search_text_parses_result(monkeypatch, cache):
     assert (out["lat"], out["lng"]) == (32.7027, 131.3007)
     req = calls[0]
     assert req.headers["X-Goog-FieldMask"] == (
-        "places.id,places.displayName,places.location,places.regularOpeningHours,places.addressComponents,places.types"
+        "places.id,places.displayName,places.location,places.regularOpeningHours,places.addressComponents,places.types,"
+        "places.primaryType"
     )
     body = json.loads(req.content)
     assert body["languageCode"] == "en"
@@ -220,3 +221,20 @@ def test_leg_skips_flight_and_ferry(monkeypatch):
     assert asyncio.run(routes.leg((0, 0), (1, 1), "FLIGHT", "en")) is None
     assert asyncio.run(routes.leg((0, 0), (1, 1), "FERRY", "en")) is None
     assert calls == []
+
+
+# ---------- Name matching ----------
+
+
+def test_name_keys_drop_generic_words_and_japanese_suffixes():
+    assert places.name_keys("Fushimi Inari Taisha") == {"fushimi", "inari", "taisha"}
+    assert places.name_keys("Kyoto Station") == {"kyoto"}
+    assert places.name_keys("伏見稲荷大社") == {"伏見稲荷大社", "伏見稲荷"}
+    assert places.name_keys("清水寺") == {"清水寺"}  # "清水" alone would be too short to mean this temple
+
+
+def test_mentions():
+    assert places.mentions("【京都】伏見稲荷の千本鳥居 #shorts", "伏見稲荷大社")
+    assert places.mentions("ＧＩＯＮ　ＴＡＮＴＯ okonomiyaki", "祇園 たんと", "Gion Tanto")  # full-width text
+    assert not places.mentions("落語 寿限無 #shorts", "一蘭 本店", "Ichiran Main Store")
+    assert not places.mentions("best ramen in japan", "Ramen Shop")  # only generic words: no match

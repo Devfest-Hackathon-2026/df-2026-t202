@@ -372,3 +372,53 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Rejected:** Leaving INFO logging on. The YouTube Data API takes the key as a `key=` query parameter, so httpx's INFO line printed the full key into Cloud Logging (found in the quality evaluation on 2026-11-09).
 - **Why:** Keys must never reach logs (AGENTS.md hard rule 4). A test checks the level.
 - **Decided by:** Claude · 2026-11-09
+
+### D61. Free-text prefs and musts are added, never replaced
+- **Chosen:** Concierge prefs and musts are added to the current lists (deduped, at most 20). Removing an item is done with the card, which replaces the list.
+- **Rejected:** Replacing the list. The prompt tells Gemini to send only new values, so "also add shopping" wiped the earlier prefs. A `remove` field (changes `models.py`).
+- **Why:** A merge bug found in the live Concierge eval.
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D62. Partial free-text updates change only what the user said
+- **Chosen:** Budget and people updates from free text overlay the current values ("make it 80000" keeps the total basis; "+1 child" keeps the adults). A budget amount given before the destination gets the destination's currency once it's known.
+- **Rejected:** An "explicit currency" flag (changes `models.py`).
+- **Why:** The live eval showed a total budget silently becoming per person.
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D63. Concierge never invents dates
+- **Chosen:** Dates only when both days are stated or a named holiday defines them. Seasons, months and "a weekend" get one clarify question. Comments confirm and give one tip; they never ask for the next condition.
+- **Rejected:** Letting the model pick a range ("next spring" became a 92-day range).
+- **Why:** Live eval: 42/45 → 45/45 (49/49 with new cases).
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D64. A YouTube burst limit is temporary (changes D57)
+- **Chosen:** Only `quotaExceeded` and `dailyLimitExceeded` stop YouTube until the reset. `rateLimitExceeded` skips one stop.
+- **Rejected:** Treating all three the same (one short burst disabled videos for the rest of the day).
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D65. Only Shorts that name the spot; at most 10 new searches per plan (changes D51)
+- **Chosen:** Keep a video only if its title contains a distinctive part of the place name. Skip hotels, stations and rental offices. Search sights first. Cache empty results for 1 day instead of 7.
+- **Rejected:** Ranking only (an unrelated rakugo clip was shown for a ramen shop). An extra API call per video.
+- **Why:** Relevance and the ~100 searches a day quota.
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D66. Transit with no route: walk if ≤ 2 km
+- **Chosen:** A real WALK route for short hops, else the Planner's minutes as an estimate, with the train line in the note.
+- **Rejected:** Always an estimate (11 of 19 legs said "Please check" in Kyoto). Inventing a speed.
+- **Why:** The Routes API has no transit data for Japan.
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D67. One closed stop triggers a repair; time limits fit Cloud Run (changes D44)
+- **Chosen:** Repair when a stop is closed on arrival, giving Google's hours to the fix call. Fix calls use LOW thinking. Draft timeout 90 s, fix timeout 45 s, no repair after 140 s. Cloud Run timeout 300 s. A cancelled request resets the trip to "error".
+- **Rejected:** The 3-warning threshold (closed stops shipped). 120 s per attempt (the worst case exceeded the request limit).
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D68. Hotels can't be meals or sights; padded names are ignored
+- **Chosen:** A Places `primaryType` check (no extra cost: the mask was already Enterprise) and a name-length and shared-word check.
+- **Rejected:** Prompt rules only (a ryokan was a lunch stop; Google returned an SEO-spam name).
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D69. Authentic itinerary rules and a cost guard (changes D45, D54)
+- **Chosen:** `stay` names a real hotel or ryokan or an area. Meals at 11:30–13:30 and 18:00–20:00 at real restaurants, never moved earlier. Opening hours, sunset and pace rules in the prompt. In code: reversed cost ranges are swapped, single prices are widened ±10%, and a budget check is added when the max goes over the budget.
+- **Rejected:** Area-only stays. Trusting the model for cost (the plan had min = max and went over budget silently).
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09

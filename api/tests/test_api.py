@@ -189,6 +189,26 @@ async def test_place_not_found_asks_back(api, monkeypatch):
     assert "couldn't find" in last["text"] and last["ui"]["type"] == "dest"
 
 
+async def test_unresolved_dest_change_drops_the_claiming_comment(api, monkeypatch):
+    async def fake_run(slots, step, text, lang):
+        return ConciergeOutput.model_validate(
+            {"updates": {"dest": "Hokaido"}, "comment": "Changing to Hokkaido!", "clarify": "Which part?"}
+        )
+
+    async def no_place(query, lang):
+        return None
+
+    trip_id = await new_trip(api)
+    await answer(api, trip_id, "dest", KYUSHU_REF)
+    monkeypatch.setattr(concierge, "run", fake_run)
+    monkeypatch.setattr(flow, "search_place", no_place)
+    resp = await api.post(f"/trips/{trip_id}/messages", json={"type": "text", "text": "go to hokaido instead"})
+    assert resp.json() == {"asking": "dates"}
+    last = (await fs.list_messages(trip_id))[-1]
+    assert last["text"] == flow.text_for("place_not_found", "en")  # no "Changing to Hokkaido!"
+    assert (await fs.get_trip(trip_id))["slots"]["dest"]["label"] == KYUSHU_REF["label"]
+
+
 async def test_places_failure_asks_again_no_500(api, monkeypatch):
     async def fake_run(slots, step, text, lang):
         return ConciergeOutput.model_validate({"updates": {"dest": "Kyushu", "people": {"adult": 4}}})

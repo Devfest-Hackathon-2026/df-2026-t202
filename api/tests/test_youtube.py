@@ -12,10 +12,11 @@ from app.services import firestore, youtube
 
 SEARCH = {
     "items": [
-        {"id": {"videoId": "v1"}, "snippet": {"title": "Kyushu trip vlog"}},
+        {"id": {"videoId": "v1"}, "snippet": {"title": "Kyushu trip vlog: Takachiho"}},
         {"id": {"videoId": "v2"}, "snippet": {"title": "高千穂峡 ボート #shorts"}},
-        {"id": {"videoId": "v3"}, "snippet": {"title": "Kids song"}},
+        {"id": {"videoId": "v3"}, "snippet": {"title": "Kids song at Takachiho"}},
         {"id": {"videoId": "v4"}, "snippet": {"title": "Japan in 60 s"}},
+        {"id": {"videoId": "v5"}, "snippet": {"title": "宮崎の絶景 高千穂峡"}},
     ]
 }
 STATUS = {"items": [{"id": "v3", "status": {"madeForKids": True}}, {"id": "v1", "status": {"madeForKids": False}}]}
@@ -43,14 +44,14 @@ def world(monkeypatch):
     return state
 
 
-def test_ranks_by_name_drops_kids_videos_and_caches(world):
-    ids = asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP"))
+def test_keeps_videos_naming_the_spot_drops_kids_videos_and_caches(world):
+    ids = asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP", name="Takachiho Gorge"))
 
-    assert ids == ["v2", "v1", "v4"]  # title with the name first; v3 is Made for Kids
+    assert ids == ["v1", "v2", "v5"]  # v3 is Made for Kids; v4 doesn't name the spot
     search = world["calls"][0].url.params
     assert search["q"] == "高千穂峡 shorts" and search["regionCode"] == "JP" and search["videoDuration"] == "short"
     assert "relevanceLanguage" not in search
-    assert world["cache"][("videos", "p1")]["videoIds"] == ["v2", "v1", "v4"]
+    assert world["cache"][("videos", "p1")]["videoIds"] == ["v1", "v2", "v5"]
 
     assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ids
     assert len(world["calls"]) == 2  # the second call came from the cache: no new search
@@ -58,7 +59,7 @@ def test_ranks_by_name_drops_kids_videos_and_caches(world):
 
 def test_stale_cache_searches_again(world):
     world["cache"][("videos", "p1")] = {"videoIds": ["old"], "fetchedAt": firestore.now() - timedelta(days=8)}
-    assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ["v2", "v1", "v4"]
+    assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ["v2", "v5"]
 
 
 def test_quota_error_returns_empty_and_is_not_cached(world):
@@ -67,11 +68,23 @@ def test_quota_error_returns_empty_and_is_not_cached(world):
     assert world["cache"] == {}
 
 
-def test_no_results_are_cached_too(world):
+def test_no_results_are_cached_for_one_day(world):
     world["search"] = lambda: httpx.Response(200, json={"items": []})
     assert asyncio.run(youtube.shorts_for("p1", "Tiny shrine", "JP")) == []
     assert world["cache"][("videos", "p1")]["videoIds"] == []
     assert len(world["calls"]) == 1  # no status call for an empty result
+    assert asyncio.run(youtube.cached("p1")) == []  # fresh: no new search today
+
+    world["cache"][("videos", "p1")]["fetchedAt"] = firestore.now() - timedelta(days=2)
+    assert asyncio.run(youtube.cached("p1")) is None  # "no videos" is retried after a day
+    world["cache"][("videos", "p2")] = {"videoIds": ["v"], "fetchedAt": firestore.now() - timedelta(days=2)}
+    assert asyncio.run(youtube.cached("p2")) == ["v"]  # real videos are kept for 7 days
+
+
+def test_unrelated_videos_are_dropped(world):
+    clip = {"items": [{"id": {"videoId": "x"}, "snippet": {"title": "落語 寿限無 #shorts"}}]}
+    world["search"] = lambda: httpx.Response(200, json=clip)
+    assert asyncio.run(youtube.shorts_for("p1", "一蘭 本店", "JP", name="Ichiran Main Store")) == []
 
 
 def test_missing_key_or_place_returns_empty(world, monkeypatch):
@@ -82,8 +95,8 @@ def test_missing_key_or_place_returns_empty(world, monkeypatch):
 
 
 def test_quota_used_up_stops_searching_until_reset(world, monkeypatch):
-    quota = {"error": {"errors": [{"reason": "rateLimitExceeded"}]}}
-    world["search"] = lambda: httpx.Response(429, json=quota)
+    quota = {"error": {"errors": [{"reason": "quotaExceeded"}]}}
+    world["search"] = lambda: httpx.Response(403, json=quota)
 
     assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == []
     assert asyncio.run(youtube.shorts_for("p2", "Glover Garden", "JP")) == []
@@ -92,7 +105,7 @@ def test_quota_used_up_stops_searching_until_reset(world, monkeypatch):
 
     monkeypatch.setattr(youtube, "_quota_out_until", firestore.now() - timedelta(seconds=1))  # quota reset
     world["search"] = lambda: httpx.Response(200, json=SEARCH)
-    assert asyncio.run(youtube.shorts_for("p2", "Glover Garden", "JP")) != []
+    assert asyncio.run(youtube.shorts_for("p2", "高千穂峡", "JP")) != []
 
 
 def test_other_errors_dont_stop_searching(world):
@@ -100,6 +113,15 @@ def test_other_errors_dont_stop_searching(world):
     asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP"))
     asyncio.run(youtube.shorts_for("p2", "Glover Garden", "JP"))
     assert len(world["calls"]) == 2
+
+
+def test_burst_rate_limit_skips_only_that_stop(world):
+    burst = {"error": {"errors": [{"reason": "rateLimitExceeded"}]}}
+    world["search"] = lambda: httpx.Response(429, json=burst)
+    assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == []
+    assert youtube._quota_out_until is None and world["cache"] == {}  # not the daily quota, nothing cached
+    world["search"] = lambda: httpx.Response(200, json=SEARCH)
+    assert asyncio.run(youtube.shorts_for("p2", "高千穂峡", "JP")) == ["v2", "v5"]
 
 
 def test_next_reset_is_midnight_pacific():

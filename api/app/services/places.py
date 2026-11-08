@@ -14,6 +14,8 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
+import unicodedata
 
 import httpx
 
@@ -21,8 +23,9 @@ from app.config import get_settings
 from app.services import firestore
 
 BASE = "https://places.googleapis.com/v1"
-# regularOpeningHours is an Enterprise SKU field; we need it for the "outside opening hours" warning.
-PLACE_FIELDS = "id,displayName,location,regularOpeningHours,addressComponents,types"
+# regularOpeningHours is an Enterprise SKU field (D35), so every search is billed as Text Search Enterprise; the other
+# fields (types, primaryType) are Pro fields and cost nothing extra on top of that.
+PLACE_FIELDS = "id,displayName,location,regularOpeningHours,addressComponents,types,primaryType"
 SEARCH_FIELDS = ",".join(f"places.{f}" for f in PLACE_FIELDS.split(","))
 BIAS_RADIUS_M = 50_000.0  # the API maximum
 MAX_QUERY_CHARS = 200  # queries can be user text: keep them short
@@ -96,6 +99,7 @@ def parse_place(place: dict) -> dict:
         "countryCode": _country_code(place),
         "openingHours": place.get("regularOpeningHours"),
         "types": place.get("types", []),
+        "primaryType": place.get("primaryType"),
     }
 
 
@@ -157,3 +161,40 @@ async def local_name(place_id: str, country_code: str) -> str | None:
     lang = COUNTRY_LANG.get((country_code or "").upper(), "en")
     place = await _details(place_id, lang, "displayName")
     return place.get("displayName", {}).get("text") if place else None
+
+
+# ---------- Name matching (used to keep good names and to drop unrelated YouTube videos) ----------
+
+SPLIT = re.compile(r"[\s・･()（）「」『』【】\[\]〈〉<>|/,、。.:：!！?？#＃\-–—~〜'’\"]+")
+JA_SUFFIXES = ("本店", "支店", "店", "大社", "神社", "神宮", "寺", "駅", "公園", "温泉", "城")
+EN_COMMON = {
+    "the", "and", "shrine", "temple", "castle", "park", "garden", "gardens", "station", "onsen", "ramen", "restaurant",
+    "cafe", "market", "museum", "street", "tower", "japan", "hotel", "ryokan", "main", "store", "shop", "branch",
+}  # fmt: skip
+
+
+def compact(text: str) -> str:
+    """Lower case, full-width -> half-width (NFKC), no spaces or punctuation."""
+    return SPLIT.sub("", unicodedata.normalize("NFKC", text).lower())
+
+
+def name_keys(name: str) -> set[str]:
+    """Distinctive pieces of a place name: whole words, plus Japanese words without a common suffix
+    ("伏見稲荷大社" -> "伏見稲荷"). Latin words need 4+ letters and must not be generic ("temple", "ramen")."""
+    keys = set()
+    for word in SPLIT.split(unicodedata.normalize("NFKC", name).lower()):
+        if word.isascii():
+            if len(word) >= 4 and word not in EN_COMMON:
+                keys.add(word)
+        elif len(word) >= 2:
+            keys.add(word)
+            for suffix in JA_SUFFIXES:
+                if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                    keys.add(word[: -len(suffix)])
+    return keys
+
+
+def mentions(text: str, *names: str) -> bool:
+    """Does `text` (a video title, another name) contain a distinctive piece of one of the names?"""
+    flat = compact(text)
+    return any(key in flat for name in names if name for key in name_keys(name))
