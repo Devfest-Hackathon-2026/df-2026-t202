@@ -197,7 +197,7 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
 | Path | Fields |
 |---|---|
 | `users/{uid}` | `displayName`, `photoURL`, `language` (`"en"`/`"ja"`), `createdAt` |
-| `trips/{tripId}` | `ownerUid`, `members` (map uid → `"owner"`/`"viewer"`), `language`, `slots` (7.2), `asking` (current step key), `status` (`"chatting"`/`"planning"`/`"ready"`/`"error"`), `progress` (`"spots"`/`"routes"`/`"videos"`/`"done"`), `currentPlanId`, `shareId`, `createdAt`, `updatedAt` |
+| `trips/{tripId}` | `ownerUid`, `members` (map uid → `"owner"`/`"viewer"`), `language`, `slots` (7.2), `asking` (current step key), `status` (`"chatting"`/`"planning"`/`"ready"`/`"error"`), `progress` (`"spots"`/`"routes"`/`"videos"`/`"done"`), `currentPlanId`, `shareId`, `messageCount` (messages written so far, for the per-trip limit), `createdAt`, `updatedAt` |
 | `trips/{tripId}/messages/{msgId}` | `role` (`"user"`/`"ai"`), `text`, `answer` (card answer object or null), `ui` (card to show, AI messages only), `createdAt` |
 | `trips/{tripId}/plans/{planId}` | `version`, `plan` (7.3), `reason`, `createdAt` |
 | `shares/{shareId}` | `tripId`, `mode` (`"view"`), `active` (bool), `createdAt` |
@@ -342,7 +342,7 @@ Every request needs `Authorization: Bearer <Firebase ID token>` and `X-Firebase-
 | POST | `/trips/{id}/plan` | `{}` | Run the plan pipeline (9.3). Write progress to the trip doc. Save the plan. Return `{planId}`. |
 | POST | `/trips/{id}/share` | `{}` | Create `shares/{shareId}` with a random 22+ character id. Return `{shareId}`. |
 | POST | `/trips/{id}/plan/edit` | `{text}` | **Stretch.** Editor agent revises the plan. |
-| GET | `/healthz` | — | Health check. |
+| GET | `/health` | — | Health check. `/healthz` also works locally, but Cloud Run reserves paths ending in `z`. |
 
 Answer examples:
 
@@ -405,7 +405,7 @@ Target: under 30 seconds. Run Places, Routes and YouTube calls in parallel (`asy
 ### 9.6 Abuse limits
 
 - Max 20 plan generations per user per day (counter in Firestore).
-- Max 60 chat messages per trip.
+- Max 60 chat messages per trip (`trips.messageCount`, reserved in a transaction before the Gemini call).
 
 ---
 
@@ -599,7 +599,7 @@ Check each license at the source before submission.
 | Flash first, Pro only if needed | Pro for all agents | Faster replies (target: first reply under 2 s) and lower cost. |
 | Cost as ranges with "estimate" badges | Exact prices | We do not have live price data. Ranges are honest. |
 
-Add a row whenever the team makes a new choice.
+Add a row whenever the team makes a new choice. **Detailed technical decisions (options compared, measurements, who decided) are in [`docs/decisions.md`](docs/decisions.md).**
 
 ---
 

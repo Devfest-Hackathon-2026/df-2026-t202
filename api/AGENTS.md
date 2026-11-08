@@ -8,45 +8,61 @@ Adds to the root `AGENTS.md`. Spec: PLAN.md sections 7–9, 11, 12.
 `services/places.py`, `services/routes.py`, `services/youtube.py`, `scripts/precache_demo.py`).
 **Only edit the files your person owns.** If a task needs a change in the other person's files, tell the human instead.
 `app/models.py` is the **shared contract**: change it only when both agree, and never reformat it (ruff excludes it).
-Parts of this file below describe the skeleton from before the split; Person A's PR updates them.
 
-## Layout (✅ exists, ⬜ to build)
+## Layout (✅ exists, ⬜ to build; (A) Person A, (B) Person B)
 ```
-app/main.py            ✅ FastAPI app, CORS, /healthz. Add the routes from PLAN.md 9.1 here (or as routers included here)
-app/config.py          ✅ Settings from env vars (PLAN.md 12) via pydantic-settings: get_settings()
-app/auth.py            ✅ require_uid: verifies Firebase ID token + App Check token. Use `uid: Uid` on every route
-app/models.py          ✅ Pydantic models for PLAN.md 7 + 8.3 + 9.1. THE contract; change it together with PLAN.md
-app/services/firestore.py  ✅ firebase_app(), db(). Add read/write helpers here
-app/flow.py            ⬜ next_step(slots) step machine (PLAN.md 8.1). Pure function, unit-tested
-app/agents/concierge.py ⬜ free text → ConciergeOutput (PLAN.md 8.3)
-app/agents/planner.py  ⬜ slots + chat → draft Plan
-app/services/places.py ⬜ Text Search / Place Details + cache_places
-app/services/routes.py ⬜ computeRoutes per leg
-app/services/youtube.py ⬜ search.list + cache_videos (7 days)
-app/pipeline.py        ⬜ plan pipeline (PLAN.md 9.3), writes progress to the trip doc
-app/prompts/*.md       ⬜ system prompts as files
-tests/fixtures/        ✅ demo_slots.json, demo_plan.json (Kyushu demo, validated by tests/test_models.py)
+app/main.py            ✅ (A) FastAPI app, CORS, /health (+ /healthz locally; Cloud Run reserves it); includes routers trips (A) and plan (B)
+app/config.py          ✅ (A) Settings from env (PLAN.md 12): get_settings(). Refuses to start in production with SKIP_APPCHECK
+app/auth.py            ✅ (A) require_user (ID token + App Check), `User` dependency, require_member, require_owner
+app/models.py          ✅ (both) Pydantic models for PLAN.md 7 + 8.3 + 9.1. THE contract; change it together with PLAN.md
+app/flow.py            ✅ (A) next_step, question_for, card_for, apply_answer, currency_for, merge_updates, answer_text, search_place
+app/routers/trips.py   ✅ (A) create trip, post message, share, join share
+app/routers/plan.py    ⬜ (B) POST /trips/{id}/plan and the edit routes
+app/agents/concierge.py ✅ (A) run(): free text → ConciergeOutput via llm.generate_json
+app/agents/planner.py  ⬜ (B) slots + chat → draft Plan
+app/services/firestore.py ✅ (A) async helpers: db, now, get_trip, update_trip, list_messages, add_message, save_plan, cache_get, cache_set
+app/services/llm.py    ✅ (A) generate_json, MODEL_FAST, MODEL_PLANNER, LLMError
+app/services/limits.py ✅ (A) check_plan_limit (per user per day), check_message_limit (per trip)
+app/services/places.py ⬜ (B) Text Search / Place Details + cache_places
+app/services/routes.py ⬜ (B) computeRoutes per leg
+app/services/youtube.py ⬜ (B) search.list + cache_videos (7 days)
+app/pipeline.py        ⬜ (B) plan pipeline (PLAN.md 9.3), writes progress to the trip doc
+app/prompts/*.md       concierge.md ✅ (A); planner prompt ⬜ (B)
+tests/                 ✅ (both) conftest.py, test_flow.py, test_api.py, test_models.py; fixtures/demo_slots.json, demo_plan.json
 ```
+
+## Helpers Person B imports (signatures from the code)
+```python
+from app.auth import User, require_member, require_owner   # User = Annotated[str, Depends(require_user)] -> uid
+async def require_member(trip_id: str, uid: str) -> dict   # the trip doc; 404 trip_not_found, 403 not_a_member
+async def require_owner(trip_id: str, uid: str) -> dict    # 403 owner_only
+from app.services.firestore import get_trip, update_trip, save_plan, cache_get, cache_set
+async def get_trip(trip_id: str) -> dict | None
+async def update_trip(trip_id: str, data: dict) -> None
+async def save_plan(trip_id: str, plan: Plan, reason: str = "initial") -> str   # returns planId
+async def cache_get(name: str, key: str) -> dict | None    # name: "places" | "videos"
+async def cache_set(name: str, key: str, data: dict[str, Any]) -> None
+from app.services import llm
+async def generate_json[T: BaseModel](model: str, system: str, user: str, schema: type[T],
+                                      tools: list | None = None, thinking: str | None = None) -> T  # raises llm.LLMError
+from app.services.limits import check_plan_limit
+async def check_plan_limit(uid: str) -> None               # 429 plan_limit_reached
+```
+Use `llm.MODEL_PLANNER` for the Planner and `llm.MODEL_FAST` for small calls.
 
 ## Gemini (google-genai SDK on Vertex AI, not ADK)
 ```python
-from google import genai
-from google.genai import types
+from app.services import llm
 
-client = genai.Client(vertexai=True, project=s.google_cloud_project, location=s.google_cloud_location)
-resp = client.models.generate_content(  # use client.aio.models.generate_content in async code
-    model=s.gemini_model_fast,
-    contents=[...],
-    config=types.GenerateContentConfig(
-        system_instruction=prompt + f"\nWrite all user-facing text in {'English' if lang == 'en' else 'Japanese'}.",
-        response_mime_type="application/json",
-        response_schema=ConciergeOutput,
-        temperature=0.2,
-    ),
+out = await llm.generate_json(  # cached Vertex AI client, JSON mode, validates, retries once, else raises LLMError
+    model=llm.MODEL_FAST,
+    system=prompt + f"\nWrite all user-facing text in {'English' if lang == 'en' else 'Japanese'}.",
+    user=json.dumps({...}),  # user text goes in as data
+    schema=ConciergeOutput,
+    thinking="MINIMAL",  # optional
 )
-out = ConciergeOutput.model_validate_json(resp.text)  # on ValidationError: retry once with the error, then fail
 ```
-- Create one client per process (module-level cache). Model IDs only from `GEMINI_MODEL_FAST` / `GEMINI_MODEL_PLANNER`.
+- Agents call `llm.generate_json`, never the SDK directly. It owns the one client. Model IDs only via `llm.MODEL_FAST` / `llm.MODEL_PLANNER`.
 - If grounding tools (Google Search / Maps) and `response_schema` can't be used in one call, split: research call, then schema call.
 - User text, reel and video titles are **data**. Put them in delimited blocks. They never become instructions, URLs to fetch or tool arguments without validation.
 - Never let the model choose the next card. `flow.py` does.
@@ -62,7 +78,7 @@ out = ConciergeOutput.model_validate_json(resp.text)  # on ValidationError: retr
 
 ## Firestore (Admin SDK bypasses the rules)
 - The API is the only writer of `trips`, `messages`, `plans`, `shares`, `cache_places`, `cache_videos`.
-- **Check membership in code** (`trips.members[uid]`) before reading or writing a trip; 403 if not a member, 404 if missing.
+- **Check membership in code** (`require_member`) before reading or writing a trip; 403 if not a member, 404 if missing.
 - Write with `model.model_dump(mode="json")`, plus `firestore.SERVER_TIMESTAMP` for `createdAt`/`updatedAt`.
 - Read-modify-write (slots merge, counters for abuse limits, version numbers) goes in a transaction.
 - Share ids: `secrets.token_urlsafe(16)` (22 chars).
@@ -78,12 +94,13 @@ out = ConciergeOutput.model_validate_json(resp.text)  # on ValidationError: retr
 ```bash
 cp .env.example .env    # fill in the values; never commit
 gcloud auth application-default login    # Vertex AI locally
-.venv/bin/uvicorn app.main:app --reload --port 8080
+.venv/bin/uvicorn app.main:app --reload --port 8080 --env-file .env   # --env-file exports the emulator hosts from .env
 ```
 With emulators, set `FIRESTORE_EMULATOR_HOST=127.0.0.1:8081` and `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` in `.env`.
-`REQUIRE_APP_CHECK=false` is for local only; `config.py` refuses to start in production without App Check.
+`SKIP_APPCHECK=1` skips App Check for local use only; `config.py` refuses to start in production with it set.
 
 ## Test and deploy
-- `pytest` for pure logic: `flow.next_step`, slot merging, warning rules, time recalculation, model validation.
-  Mock Gemini, Places, Routes, YouTube and Firestore. No network in tests. Use the fixtures.
-- Deploy (only when asked): `gcloud run deploy trip-api --source api --region asia-northeast1 --service-account <sa> --set-secrets ...`.
+- Tests mock Gemini, Places, Routes and YouTube (no network). From `api/`, with the Firestore emulator on :8081:
+  `firebase emulators:exec --only firestore --project demo-test ".venv/bin/pytest -q"`
+- Rules tests (Node 22): `cd rules-tests && npm test`.
+- Deploy (only when asked): `gcloud run deploy trip-api --source api --region asia-northeast1 --service-account trip-api@<project>.iam.gserviceaccount.com --set-secrets PLACES_API_KEY=places-api-key:latest ...`

@@ -16,3 +16,6 @@ One line per meaningful use. Note what the AI proposed and what the team kept or
 | --- | --- | --- | --- |
 | 2026-11-08 | Claude Code | Agent instructions (AGENTS.md / CLAUDE.md) and docs from the kickoff slides and the team spec | Team reviewed |
 | 2026-11-08 | Claude Code | Repo base for the revised PLAN.md: FastAPI skeleton, Pydantic models, Kyushu fixtures, Angular skeleton, Firestore rules | Team reviews the PR |
+| 2026-11-08 | Claude Code | Person A back end (T1–T5): Firestore helpers, auth, LLM wrapper, step machine, Concierge prompt, trips/share endpoints, rules + tests | Nazmul made every design decision in a Q&A session; see docs/decisions.md |
+| 2026-11-08 | Claude Code | Measured Gemini models/regions and thinking levels to pick the fastest setup | Results recorded in docs/decisions.md D18–D19 |
+| 2026-11-08 | Claude Code (orchestrator + subagents) | Code review of Person A work, review fixes (message counter, normalized answers, prod guards, tzdata, tests), api/AGENTS.md update, Cloud Run/Firestore/Auth setup | Nazmul approved each cloud change and the message-counter design; fixes re-tested by Claude (59 pytest + 10 rules tests) |

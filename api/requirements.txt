@@ -5,4 +5,6 @@ pydantic==2.14.3
 pydantic-settings==2.16.2
 firebase-admin==7.7.0
 google-genai==2.34.0
+google-cloud-firestore==2.34.1
+tzdata==2026.6  # zoneinfo data (Asia/Tokyo); slim images have no system tz database
 httpx==0.28.1

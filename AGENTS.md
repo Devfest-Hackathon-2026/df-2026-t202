@@ -42,7 +42,8 @@ Priority: the MVP (PLAN.md 3.1, F1–F5 + F10) working end to end > polish > str
 4. **No hard-coded UI text.** Every string goes in both `web/public/i18n/en.json` and `ja.json` (a test checks the keys match).
 5. Keep it simple and readable. This is a 5-day hackathon. No speculative abstractions, no drive-by refactors.
 6. For a non-trivial choice (new library, service, data shape), propose 2–3 options with pros and cons and let a human
-   choose. Then add a row to PLAN.md section 16 ("Own the Why"; it feeds the submission doc's Rationale section).
+   choose. Then add an entry to `docs/decisions.md` (chosen, rejected and why, who decided, date) in the same commit.
+   This is the hackathon theme ("Own the Why") and feeds the submission doc's Rationale section.
 7. When AI generated a large part of a feature, add a line to `docs/ai-usage.md` (what, where, why).
 
 ## Repo layout (PLAN.md 6)
@@ -63,7 +64,7 @@ firebase emulators:start --only auth,firestore
 
 # API (api/)
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements-dev.txt
-.venv/bin/uvicorn app.main:app --reload --port 8080
+.venv/bin/uvicorn app.main:app --reload --port 8080 --env-file .env   # --env-file exports the emulator hosts from .env
 .venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/ruff format --check .
 
 # Web (web/), Node >= 22.12, npm 11
