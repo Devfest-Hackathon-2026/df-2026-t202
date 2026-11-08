@@ -6,7 +6,7 @@ This file is the single source of truth for the build. It is written for the tea
 Read the whole file before you write code. Follow the rules in section 2. They can disqualify the team.
 
 - Based on: the teammate's spec "九州旅行AIプランナー 仕様書（Googleハッカソン版）"
-- Revised: 2026-11-08 (Sun), 11:15 JST. Later on Nov 8: cache collections renamed, google-genai instead of ADK, UiCard shape (7.4), repo layout synced with the code.
+- Revised: 2026-11-08 (Sun), 11:15 JST. Later on Nov 8: cache collections renamed, google-genai instead of ADK, back-end split into Person A / Person B with a shared `models.py` contract (7.4), repo layout synced with the code.
 - Changes from the original spec: worldwide destinations, English/Japanese language setting, Shorts in any language, smaller scope for the deadline, simpler progress updates (Firestore instead of SSE).
 
 ---
@@ -163,8 +163,11 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
    ├─ Dockerfile
    ├─ requirements.txt
    ├─ app/
-   │  ├─ main.py            ← FastAPI app, routes
+   │  ├─ main.py            ← FastAPI app, includes the routers
    │  ├─ config.py          ← env vars (section 12) via pydantic-settings
+   │  ├─ routers/
+   │  │  ├─ trips.py        ← /trips, /messages, /share, /shares/{id}/join (Person A)
+   │  │  └─ plan.py         ← /trips/{id}/plan (Person B)
    │  ├─ auth.py            ← verify Firebase ID token + App Check token
    │  ├─ models.py          ← Pydantic: Slots, Plan, Day, Stop, Leg, Cost, UiCard
    │  ├─ flow.py            ← step machine: which card comes next
@@ -176,7 +179,9 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
    │  │  ├─ places.py       ← resolve spot → placeId, names, lat/lng, hours
    │  │  ├─ routes.py       ← legs: minutes, polyline
    │  │  ├─ youtube.py      ← Shorts search + cache
-   │  │  └─ firestore.py    ← read/write helpers
+   │  │  ├─ firestore.py    ← read/write helpers (async client)
+   │  │  ├─ llm.py          ← Gemini via Vertex AI: generate_json(model, system, user, schema)
+   │  │  └─ limits.py       ← per-user daily plan limit
    │  ├─ pipeline.py        ← plan pipeline (section 9.3)
    │  └─ prompts/           ← system prompts as .md files
    └─ tests/
@@ -267,13 +272,14 @@ Rules:
 ### 7.4 `ui` card (on AI messages)
 
 ```json
-{"type": "budget", "chips": [{"value": "30000", "label": "¥30,000"}], "multi": false, "currency": "JPY", "allowSkip": true}
+{"type": "transport", "options": ["shinkansen", "train", "plane", "car", "bus", "ferry", "any"]}
 ```
 
 - `type`: a step key (8.1) or `"ready"`. The server sets it from `next_step()`. The LLM never chooses it.
-- `chips`: suggestions (popular destinations, prefs). `value` is sent back in the answer; `label` is in the trip language.
-- `multi`: multi-select chips (transport, prefs). `currency`: budget card only. `allowSkip`: false only for `ready`.
-- The Pydantic source of truth for all shapes in section 7 is `api/app/models.py`. Fixtures: `api/tests/fixtures/`.
+- `options`: chip values, if any (transport modes, prefs). The front end shows labels from the i18n files.
+- **The code version of every shape in section 7 is `api/app/models.py`, the shared contract between the two back-end
+  people.** It differs from the JSON above in small ways (dates are `"YYYY-MM-DD"` strings, `PlaceRef` has `lat`/`lng`,
+  stops have `stayMinutes`). Change it only when both back-end people agree. Fixtures: `api/tests/fixtures/`.
 
 ---
 

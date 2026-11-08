@@ -2,6 +2,14 @@
 
 Adds to the root `AGENTS.md`. Spec: PLAN.md sections 7–9, 11, 12.
 
+**Two people build this folder in parallel.** Person A owns chat and platform (`main.py`, `auth.py`, `flow.py`,
+`routers/trips.py`, `agents/concierge.py`, `services/firestore.py`, `services/llm.py`, `services/limits.py`,
+`firestore.rules`, deploy). Person B owns the plan engine (`routers/plan.py`, `pipeline.py`, `agents/planner.py`,
+`services/places.py`, `services/routes.py`, `services/youtube.py`, `scripts/precache_demo.py`).
+**Only edit the files your person owns.** If a task needs a change in the other person's files, tell the human instead.
+`app/models.py` is the **shared contract**: change it only when both agree, and never reformat it (ruff excludes it).
+Parts of this file below describe the skeleton from before the split; Person A's PR updates them.
+
 ## Layout (✅ exists, ⬜ to build)
 ```
 app/main.py            ✅ FastAPI app, CORS, /healthz. Add the routes from PLAN.md 9.1 here (or as routers included here)
