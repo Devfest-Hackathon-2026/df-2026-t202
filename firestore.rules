@@ -1,73 +1,52 @@
 rules_version = '2';
 
-// Clients only touch their own profile and trips they belong to.
-// Backend-only data (reel cache, invites, deck, itinerary) is written by the
-// Cloud Run service account via the Admin SDK, which bypasses these rules.
+// PLAN.md 11.1. Clients only READ trips; every trip write goes through the API (Admin SDK bypasses rules).
+//
+// "My trips" query must match the read rule, e.g.:
+//   query(collection(db, 'trips'), where(`members.${uid}`, 'in', ['owner', 'viewer']))
+// (sort by updatedAt on the client; a composite index on a per-user map key is not possible).
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
-    function isMember(tripId) {
-      return signedIn() &&
-        request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
+    function isMember(trip) {
+      return signedIn() && trip.data.members[request.auth.uid] in ['owner', 'viewer'];
     }
-    function isOwner(tripId) {
-      return signedIn() &&
-        get(/databases/$(database)/documents/trips/$(tripId)).data.ownerId == request.auth.uid;
+    function tripDoc(tripId) {
+      return get(/databases/$(database)/documents/trips/$(tripId));
     }
 
     match /users/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['displayName', 'photoURL', 'language', 'createdAt'])
+        && (!('language' in request.resource.data) || request.resource.data.language in ['en', 'ja']);
+      allow delete: if false;
     }
 
     match /trips/{tripId} {
-      allow read: if isMember(tripId);
-      allow create: if signedIn()
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.memberIds == [request.auth.uid];
-      // Owner edits settings; members are added by the backend (invite flow).
-      allow update: if isOwner(tripId)
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.memberIds == resource.data.memberIds;
-      allow delete: if isOwner(tripId);
+      allow read: if isMember(resource);
+      allow write: if false;
 
       match /messages/{msgId} {
-        allow read: if isMember(tripId);
-        allow create: if isMember(tripId)
-          && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() <= 2000;
-        allow update, delete: if false;
-      }
-
-      match /reels/{reelId} {
-        allow read: if isMember(tripId);
-        allow write: if false; // added through the API (validated link)
-      }
-
-      match /deck/{cardId} {
-        allow read: if isMember(tripId);
+        allow read: if isMember(tripDoc(tripId));
         allow write: if false;
       }
-
-      // Swipe id is `${uid}_${cardId}` so each member votes once per card.
-      match /swipes/{swipeId} {
-        allow read: if isMember(tripId);
-        allow create, update: if isMember(tripId)
-          && request.resource.data.uid == request.auth.uid
-          && swipeId == request.auth.uid + '_' + request.resource.data.cardId
-          && request.resource.data.liked is bool;
-        allow delete: if false;
-      }
-
-      match /itinerary/{dayId} {
-        allow read: if isMember(tripId);
+      match /plans/{planId} {
+        allow read: if isMember(tripDoc(tripId));
         allow write: if false;
       }
     }
 
-    // Shared reel cache and invites: backend only.
-    match /reels/{reelId} { allow read, write: if false; }
-    match /invites/{token} { allow read, write: if false; }
+    // Share links: any signed-in user (anonymous included) can read an active share.
+    // Opening a share adds the viewer to trips.members as "viewer" through the API (PLAN.md 11.1, option 1).
+    match /shares/{shareId} {
+      allow get: if signedIn() && resource.data.active == true;
+      allow list, write: if false;
+    }
+
+    // Server caches: no client access.
+    match /cache_places/{id} { allow read, write: if false; }
+    match /cache_videos/{id} { allow read, write: if false; }
   }
 }

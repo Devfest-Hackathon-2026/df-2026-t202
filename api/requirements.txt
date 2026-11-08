@@ -1,0 +1,8 @@
+# Runtime dependencies (Cloud Run). Pinned; record new ones in ATTRIBUTION.md.
+fastapi==0.162.2
+uvicorn[standard]==0.54.0
+pydantic==2.14.3
+pydantic-settings==2.16.2
+firebase-admin==7.7.0
+google-genai==2.34.0
+httpx==0.28.1

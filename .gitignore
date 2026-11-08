@@ -9,6 +9,7 @@
 *.key
 *.p12
 service-account*.json
+*serviceAccount*.json
 credentials*.json
 google-services.json
 GoogleService-Info.plist
@@ -39,3 +40,11 @@ Thumbs.db
 *-debug.log
 .genkit/
 .firebaserc
+
+# Python (api/)
+.pytest_cache/
+.ruff_cache/
+
+# Angular (web/)
+.angular/
+web/src/environments/env.generated.ts

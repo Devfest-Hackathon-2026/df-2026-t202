@@ -1,94 +1,142 @@
-# RelaySnap
+# AI Trip Planner（仮称）
 
-Turn the travel reels you and your friends already saved into one group itinerary — with a local **hidden gem** next to every viral spot.
+チャットで AI の質問に答えるだけで、地図ルートと YouTube ショート付きの日ごとの旅行プランができあがり、リンクで友だちに共有できる旅行プランナーです。
 
-DevFest Hackathon 2026 · Category: **Tourism** · Built on Google Cloud, Firebase, Gemini and Google Maps Platform.
+DevFest GDGoC Japan Hackathon 2026 · カテゴリ：**観光** · チーム：Kyu_cat
+テーマ「Own the Why, Build with Intent.」
 
-> Deployed URL: _add here before submission_
+> デプロイ URL：_提出前に追記_
 
-## What it does
+## 解決したい課題
 
-1. **Reel import** — paste YouTube Shorts / Instagram / TikTok links. Gemini extracts places, food, activities and vibe.
-2. **Swipe deck** — Tinder-style cards to learn what each person likes.
-3. **Group trips** — invite friends, share reels, everyone swipes the same deck; we find the overlap.
-4. **Itinerary + map** — day-by-day plan on Google Maps.
-5. **Hidden gem card** — next to each popular stop, one nearby local place: rating ≥ 4.3, 20–299 reviews, within ~800 m. An estimate from ratings, not crowd data.
-6. **Booking** — hand-off to a booking provider (stretch goal).
+友だちと旅行を計画すると、LINE のメッセージ・Google マップのリンク・YouTube のリンクがばらばらになり、「誰が何を決めたのか」が分からなくなります。移動時間が現実的かどうかも誰も確認しません。
 
-## Repo layout
+**対象ユーザー：** 友だちと旅行を計画する大学生・20 代
 
-```
-apps/web         Next.js (App Router) + Tailwind — the PWA (Firebase App Hosting)
-apps/api         Hono + Genkit (Gemini) on Cloud Run
-packages/shared  Zod schemas, reel-link parser, hidden gem rule (shared by web + api)
-firestore.rules  Security rules (members-only trips)
-storage.rules    Upload rules
-docs/            Hackathon repo rules (from the organizers)
-```
+## 主な機能（MVP）
 
-## Google services
-
-| Service | Used for |
-| --- | --- |
-| Gemini (via Genkit) | Watching reels, planning itineraries, explaining picks |
-| Places API (New), Routes API, Maps JavaScript API | Cards, opening hours, hidden gems, travel times, map page |
-| Cloud Run | API + reel worker |
-| Firestore | Trips, chat, swipes (real-time) |
-| Cloud Storage | Video uploads (Instagram/TikTok fallback) |
-| Firebase Auth + App Check | Google sign-in, quota protection |
-| Secret Manager | API keys |
-| Firebase App Hosting | Web app |
-| Cloud Tasks | Async reel analysis (next step) |
-
-## Run locally
-
-Requirements: Node 22+, pnpm 10 (`corepack enable`), Firebase CLI (`npm i -g firebase-tools`).
-
-```bash
-pnpm install
-
-# API
-cp apps/api/.env.example apps/api/.env          # add GEMINI_API_KEY
-# Web
-cp apps/web/.env.example apps/web/.env.local    # add Firebase web config
-
-# Option A — fastest: no Firebase project yet
-#   apps/api/.env      DEV_SKIP_AUTH=true, FIRESTORE_EMULATOR_HOST=127.0.0.1:8081
-#   apps/web/.env.local NEXT_PUBLIC_DEV_SKIP_AUTH=true
-pnpm emulators        # terminal 1 (Firestore/Auth/Storage emulators, UI on :4000)
-pnpm dev              # terminal 2 (web :3000, api :8080)
-```
-
-Useful scripts: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm genkit:ui` (Genkit Developer UI to test prompts).
-
-## API
-
-| Method | Path | Notes |
+| ID | 機能 | 内容 |
 | --- | --- | --- |
-| GET | `/healthz` | Health check |
-| POST | `/v1/reels` | `{ url, tripId?, caption? }` → Gemini extraction. Requires Firebase ID token. Cached by video id. |
+| F1 | 質問カード付き AI チャット | 行き先・日程・人数・予算・移動手段・好み・必ず行きたい場所を、カードのタップまたは自由入力で回答 |
+| F2 | プラン生成 | Places API の実在スポットと Routes API の実際の移動時間で、日ごとのプランを作成 |
+| F3 | 地図付き旅行ページ | 日ごとに色分けしたルートと番号付きピン、タイムライン |
+| F4 | スポットごとの YouTube ショート | 各スポットの動画を旅程順にスワイプで見られる |
+| F5 | 共有リンク（閲覧のみ） | ログインなしでスマホから閲覧可能 |
+| F10 | 言語設定 | 英語・日本語を切り替え。UI と AI の出力が追従 |
 
-## Deploy (Google Cloud)
+行き先は世界中どこでも対応。デモは福岡発の九州旅行です。
 
-```bash
-# API → Cloud Run (build from repo root)
-gcloud run deploy rtt-api --source . --region asia-northeast1 \
-  --set-secrets GEMINI_API_KEY=gemini-api-key:latest,MAPS_SERVER_API_KEY=maps-server-key:latest \
-  --set-env-vars CORS_ORIGINS=https://YOUR-WEB-DOMAIN,REQUIRE_APP_CHECK=true
-# (uses apps/api/Dockerfile — pass --dockerfile or build with Cloud Build)
+## アーキテクチャ
 
-# Rules
-firebase deploy --only firestore:rules,storage
-
-# Web → Firebase App Hosting: create a backend in the console, root dir apps/web
+```
+ブラウザ / スマホ（Angular・Firebase App Hosting）
+  ├─ Maps JavaScript API・YouTube IFrame Player（表示のみ、ブラウザ用キーはドメイン制限）
+  ├─ Firebase Authentication・App Check
+  ├─ Firestore リスナー ◄── 旅行・メッセージ・プラン・進捗をリアルタイムで受信
+  └─ HTTPS（ID トークン + App Check トークン）
+        ▼
+Cloud Run：Planner API（Python・FastAPI・google-genai）
+  ├─ Vertex AI Gemini（Concierge・Planner エージェント）
+  ├─ Places API (New)・Routes API・YouTube Data API v3
+  ├─ Secret Manager（API キー）・Cloud Logging
+  └─ Firestore（Admin SDK）── AI が生成するデータの唯一の書き込み元
 ```
 
-## Security notes
+- 次に出す質問カードは **サーバーのコードが決めます**。AI は自由入力を構造化データに変換するだけです。
+- AI の下書きプランは、Places API と Routes API で **実在の場所と実際の移動時間に検証** してから保存します。
+- 費用は常に「概算」の幅で表示し、移動時間を計算できない区間には「要確認」バッジを付けます。
 
-- No secrets in this repo — `.env*` files are git-ignored. Keys live in Secret Manager.
-- Firestore rules: trips and everything under them are readable only by members.
-- The API only accepts YouTube / Instagram / TikTok links (SSRF guard) and treats reel text as data, never instructions.
+## 使用している Google 技術
 
-## License
+| サービス | 用途 |
+| --- | --- |
+| Gemini（Vertex AI） | 自由入力の理解、旅行プランの下書き |
+| Places API (New) | スポットの実在確認・現地名・座標・営業時間 |
+| Routes API | 区間ごとの移動時間とルート |
+| Maps JavaScript API | 地図とルート表示 |
+| YouTube Data API v3 | スポットごとのショート動画検索 |
+| Cloud Run | バックエンド API |
+| Firebase App Hosting | フロントエンド（Angular） |
+| Cloud Firestore | 旅行・チャット・プランの保存とリアルタイム同期 |
+| Firebase Authentication | Google ログイン・匿名ログイン（共有ページ） |
+| Firebase App Check | API の不正利用防止（reCAPTCHA Enterprise） |
+| Secret Manager | サーバー用 API キーの管理 |
+| Angular | フロントエンドフレームワーク |
+
+採用理由とメリット・デメリットは [PLAN.md の 16 章](PLAN.md#16-decisions-log-own-the-why--use-for-rationale--pros-and-cons) にまとめています。
+
+## リポジトリ構成
+
+```
+PLAN.md          仕様と開発計画（唯一の正）
+api/             Cloud Run のバックエンド（Python 3.12・FastAPI）
+web/             フロントエンド（Angular 21・App Hosting）
+firestore.rules  Firestore セキュリティルール
+firebase.json    Firestore 設定とエミュレーター
+docs/            審査基準メモ・AI 利用記録・運営のリポジトリルール
+ATTRIBUTION.md   ライブラリ・素材・データのライセンス一覧
+AGENTS.md        AI コーディングエージェント向けの開発ルール
+```
+
+## ローカル開発
+
+必要なもの：Python 3.12（[uv](https://docs.astral.sh/uv/) 推奨）、Node.js 22.12 以上と npm 11、Google Cloud CLI、Firebase CLI。
+
+```bash
+# 1. エミュレーター（リポジトリのルートで）
+cp .firebaserc.example .firebaserc        # プロジェクト ID を設定
+firebase emulators:start --only auth,firestore
+
+# 2. API（api/ で）
+cp .env.example .env                      # 値を記入（コミットしない）
+gcloud auth application-default login     # Vertex AI をローカルで使うため
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+.venv/bin/uvicorn app.main:app --reload --port 8080
+
+# 3. Web（web/ で）
+cp .env.example .env                      # USE_EMULATORS=true（コミットしない）
+npm install
+npm start                                 # http://localhost:4200
+```
+
+テスト：
+
+```bash
+cd api && .venv/bin/pytest -q && .venv/bin/ruff check .
+cd web && npm run build && npm test
+```
+
+## デプロイ
+
+```bash
+# API → Cloud Run
+gcloud run deploy trip-api --source api --region asia-northeast1 \
+  --service-account <サービスアカウント> \
+  --set-secrets PLACES_API_KEY=places-api-key:latest,ROUTES_API_KEY=places-api-key:latest,YOUTUBE_API_KEY=youtube-api-key:latest \
+  --set-env-vars ENV=production,GOOGLE_CLOUD_LOCATION=asia-northeast1,GEMINI_MODEL_FAST=<モデル名>,GEMINI_MODEL_PLANNER=<モデル名>,ALLOWED_ORIGINS=<App Hosting の URL>
+
+# Firestore ルール
+firebase deploy --only firestore:rules,firestore:indexes
+
+# Web → Firebase App Hosting：コンソールでバックエンドを作成し、ルートディレクトリを web に設定（main への push で自動デプロイ）
+```
+
+## セキュリティ
+
+- API キーやサービスアカウントの鍵はリポジトリに含めません。サーバー用キーは Secret Manager で管理し、Gemini はサービスアカウント経由（キー不要）で呼び出します。
+- ブラウザに渡すのは Maps JavaScript API のキーだけで、リファラーと API で制限しています。
+- クライアントは Firestore を読むだけで、書き込みはすべて API（Admin SDK）経由です。旅行データはメンバーだけが読めます。
+- 共有リンクの ID は推測できない 22 文字以上のランダム文字列です。
+- コミット前に `bash scripts/check-secrets.sh` で秘密情報が含まれていないか確認します。
+
+## ドキュメント
+
+- [PLAN.md](PLAN.md)：仕様・データモデル・API・画面・スケジュール（英語）
+- [docs/SUBMISSION.md](docs/SUBMISSION.md)：審査基準と提出物
+- [docs/ai-usage.md](docs/ai-usage.md)：AI をどこで、なぜ使ったか
+- [ATTRIBUTION.md](ATTRIBUTION.md)：著作物利用（ライセンス）一覧
+
+## ライセンス
 
 [MIT](LICENSE)

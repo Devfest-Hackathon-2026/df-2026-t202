@@ -1,0 +1,153 @@
+{
+  "title": "Kyushu 3 nights 4 days road trip",
+  "subtitle": "Onsen, views and night views",
+  "language": "en",
+  "currency": "JPY",
+  "days": [
+    {
+      "day": 1,
+      "date": "2027-03-10",
+      "theme": "Fukuoka → Dazaifu → Yufuin → Kurokawa Onsen",
+      "stay": "Kurokawa Onsen",
+      "stops": [
+        {
+          "id": "s-101", "time": "09:00", "name": "Hakata Station", "nameLocal": "博多駅", "kind": "start",
+          "placeId": null, "lat": 33.5897, "lng": 130.4207,
+          "note": "Pick up the rental car", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 40, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-102", "time": "10:00", "name": "Dazaifu Tenmangu", "nameLocal": "太宰府天満宮", "kind": "sight",
+          "placeId": null, "lat": 33.5215, "lng": 130.5348,
+          "note": "Shrine visit and umegae-mochi on the approach street", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 100, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-103", "time": "13:15", "name": "Lake Kinrin (Yufuin)", "nameLocal": "金鱗湖", "kind": "view",
+          "placeId": null, "lat": 33.2660, "lng": 131.3696,
+          "note": "Lunch and a walk down Yunotsubo street", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 70, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-104", "time": "16:30", "name": "Kurokawa Onsen", "nameLocal": "黒川温泉", "kind": "onsen",
+          "placeId": null, "lat": 33.0767, "lng": 131.1414,
+          "note": "Check in. Onsen-hopping pass for outdoor baths", "videoIds": [], "warn": null,
+          "leg": null
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2027-03-11",
+      "theme": "Aso → Takachiho Gorge → Kumamoto",
+      "stay": "Kumamoto city",
+      "stops": [
+        {
+          "id": "s-201", "time": "08:30", "name": "Kurokawa Onsen", "nameLocal": "黒川温泉", "kind": "start",
+          "placeId": null, "lat": 33.0767, "lng": 131.1414,
+          "note": "Check out", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 40, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-202", "time": "09:15", "name": "Daikanbo Lookout", "nameLocal": "大観峰", "kind": "view",
+          "placeId": null, "lat": 32.9910, "lng": 131.0610,
+          "note": "View over the Aso caldera", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 100, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-203", "time": "11:30", "name": "Takachiho Gorge", "nameLocal": "高千穂峡", "kind": "view",
+          "placeId": null, "lat": 32.7026, "lng": 131.3008,
+          "note": "Boat ride and Manai Falls", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 130, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-204", "time": "15:45", "name": "Kumamoto Castle", "nameLocal": "熊本城", "kind": "sight",
+          "placeId": null, "lat": 32.8063, "lng": 130.7059,
+          "note": "Castle walk before dinner in the city", "videoIds": [], "warn": null,
+          "leg": null
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2027-03-12",
+      "theme": "Ferry to Shimabara → Unzen → Nagasaki night view",
+      "stay": "Nagasaki city",
+      "stops": [
+        {
+          "id": "s-301", "time": "09:00", "name": "Kumamoto Port", "nameLocal": "熊本港", "kind": "transport",
+          "placeId": null, "lat": 32.7568, "lng": 130.5925,
+          "note": "Car ferry to Shimabara", "videoIds": [], "warn": null,
+          "leg": {"mode": "FERRY", "minutes": 60, "polyline": null, "estimate": true}
+        },
+        {
+          "id": "s-302", "time": "10:15", "name": "Shimabara Castle", "nameLocal": "島原城", "kind": "sight",
+          "placeId": null, "lat": 32.7889, "lng": 130.3672,
+          "note": null, "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 45, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-303", "time": "12:00", "name": "Unzen Jigoku", "nameLocal": "雲仙地獄", "kind": "view",
+          "placeId": null, "lat": 32.7439, "lng": 130.2630,
+          "note": "Steaming volcanic vents and onsen eggs", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 90, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-304", "time": "14:45", "name": "Glover Garden", "nameLocal": "グラバー園", "kind": "sight",
+          "placeId": null, "lat": 32.7337, "lng": 129.8693,
+          "note": "Harbor view from the hillside", "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 25, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-305", "time": "18:00", "name": "Mt. Inasa Observatory", "nameLocal": "稲佐山展望台", "kind": "night_view",
+          "placeId": null, "lat": 32.7525, "lng": 129.8540,
+          "note": "Night view over Nagasaki", "videoIds": [], "warn": null,
+          "leg": null
+        }
+      ]
+    },
+    {
+      "day": 4,
+      "date": "2027-03-13",
+      "theme": "Nagasaki → Yutoku Inari → Fukuoka",
+      "stay": null,
+      "stops": [
+        {
+          "id": "s-401", "time": "09:30", "name": "Nagasaki Peace Park", "nameLocal": "平和公園", "kind": "sight",
+          "placeId": null, "lat": 32.7766, "lng": 129.8636,
+          "note": null, "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 120, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-402", "time": "12:30", "name": "Yutoku Inari Shrine", "nameLocal": "祐徳稲荷神社", "kind": "sight",
+          "placeId": null, "lat": 33.0929, "lng": 130.0786,
+          "note": null, "videoIds": [], "warn": null,
+          "leg": {"mode": "DRIVE", "minutes": 80, "polyline": null, "estimate": false}
+        },
+        {
+          "id": "s-403", "time": "15:00", "name": "Hakata Station", "nameLocal": "博多駅", "kind": "end",
+          "placeId": null, "lat": 33.5897, "lng": 130.4207,
+          "note": "Return the rental car", "videoIds": [], "warn": null,
+          "leg": null
+        }
+      ]
+    }
+  ],
+  "cost": {
+    "basis": "person",
+    "min": 40000,
+    "max": 59500,
+    "items": [
+      {"label": "Hotels, 3 nights", "min": 21000, "max": 30000},
+      {"label": "Rental car, fuel and tolls (split by 4)", "min": 8000, "max": 12000},
+      {"label": "Car ferry Kumamoto → Shimabara (split by 4)", "min": 1500, "max": 2500},
+      {"label": "Food", "min": 8000, "max": 12000},
+      {"label": "Admission and boat ride", "min": 1500, "max": 3000}
+    ]
+  },
+  "checks": [
+    "Check the Kumamoto Port → Shimabara ferry timetable and book car space",
+    "Takachiho Gorge boats can sell out on busy days; go early",
+    "Book Kurokawa Onsen rooms early; it is a small onsen town"
+  ]
+}

@@ -1,0 +1,28 @@
+# Firebase App Hosting config for web/ (set the backend root directory to "web").
+# Values are injected at build time by scripts/write-env.mjs. Secrets are referenced by name only.
+runConfig:
+  minInstances: 0
+  maxInstances: 4
+
+env:
+  - variable: FIREBASE_API_KEY
+    secret: firebase-web-api-key
+    availability: [BUILD]
+  - variable: FIREBASE_AUTH_DOMAIN
+    value: REPLACE-PROJECT-ID.firebaseapp.com
+    availability: [BUILD]
+  - variable: FIREBASE_PROJECT_ID
+    value: REPLACE-PROJECT-ID
+    availability: [BUILD]
+  - variable: FIREBASE_APP_ID
+    value: REPLACE-APP-ID
+    availability: [BUILD]
+  - variable: MAPS_BROWSER_KEY
+    secret: maps-browser-key
+    availability: [BUILD]
+  - variable: API_BASE_URL
+    value: https://REPLACE-cloud-run-url
+    availability: [BUILD]
+  - variable: RECAPTCHA_SITE_KEY
+    value: REPLACE-recaptcha-site-key
+    availability: [BUILD]
