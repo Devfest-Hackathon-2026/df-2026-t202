@@ -1,5 +1,9 @@
-"""Settings from env vars (PLAN.md section 12). Locally from api/.env, on Cloud Run from env + Secret Manager."""
+"""Settings from env vars (BACKEND_PERSON_A.md 7).
 
+Locally from api/.env; on Cloud Run from env vars and Secret Manager.
+"""
+
+import os
 from functools import lru_cache
 
 from pydantic import SecretStr
@@ -9,21 +13,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    env: str = "development"  # "production" on Cloud Run
+    env: str = "development"  # "production" on Cloud Run (set in the Dockerfile)
 
     google_cloud_project: str | None = None
     google_cloud_location: str = "asia-northeast1"
 
-    # Vertex AI model IDs. Check the exact names in Vertex AI → Model Garden; no "-latest" aliases.
-    gemini_model_fast: str | None = None
-    gemini_model_planner: str | None = None
+    # Exact Vertex AI model IDs (Model Garden). No "-latest" aliases.
+    gemini_model_fast: str = ""
+    gemini_model_planner: str = ""
 
     places_api_key: SecretStr | None = None
-    routes_api_key: SecretStr | None = None  # may be the same key as Places
+    routes_api_key: SecretStr | None = None
     youtube_api_key: SecretStr | None = None
 
     allowed_origins: str = "http://localhost:4200"
-    require_app_check: bool = True  # set false only for local dev
+    skip_appcheck: bool = False  # SKIP_APPCHECK=1 for local development only
 
     # Abuse limits (PLAN.md 9.6)
     max_plans_per_user_per_day: int = 20
@@ -37,6 +41,11 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
-    if s.env == "production" and not s.require_app_check:
-        raise RuntimeError("REQUIRE_APP_CHECK must be true in production")
+    if s.env == "production" and s.skip_appcheck:
+        raise RuntimeError("SKIP_APPCHECK must not be set in production")
+    if s.env == "production":
+        # The Admin SDK trusts unsigned emulator tokens when these are set: that would bypass auth.
+        for name in ("FIRESTORE_EMULATOR_HOST", "FIREBASE_AUTH_EMULATOR_HOST"):
+            if os.environ.get(name):
+                raise RuntimeError(f"{name} must not be set in production")
     return s

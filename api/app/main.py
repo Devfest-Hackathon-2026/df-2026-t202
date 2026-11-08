@@ -1,7 +1,4 @@
-"""Planner API (FastAPI on Cloud Run). Routes: PLAN.md section 9.1.
-
-Add routes here (or in routers included here). Every route except /healthz takes `uid: Uid`.
-"""
+"""Planner API (FastAPI on Cloud Run). Endpoints: BACKEND_PERSON_A.md 3.7."""
 
 import logging
 
@@ -9,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.routers import plan, trips
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -24,9 +22,11 @@ app.add_middleware(
 )
 
 
+@app.get("/health")  # Cloud Run reserves paths ending in "z" (/healthz never reaches the app)
 @app.get("/healthz")
-def healthz() -> dict[str, bool]:
+async def healthz() -> dict[str, bool]:
     return {"ok": True}
 
 
-# TODO (M1+): POST /trips, POST /trips/{id}/messages, POST /trips/{id}/plan, POST /trips/{id}/share
+app.include_router(trips.router)
+app.include_router(plan.router)  # Person B
