@@ -71,7 +71,7 @@ def test_search_text_parses_result(monkeypatch, cache):
     assert (out["lat"], out["lng"]) == (32.7027, 131.3007)
     req = calls[0]
     assert req.headers["X-Goog-FieldMask"] == (
-        "places.id,places.displayName,places.location,places.regularOpeningHours,places.addressComponents"
+        "places.id,places.displayName,places.location,places.regularOpeningHours,places.addressComponents,places.types"
     )
     body = json.loads(req.content)
     assert body["languageCode"] == "en"

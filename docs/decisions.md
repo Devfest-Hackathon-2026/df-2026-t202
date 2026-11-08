@@ -334,3 +334,18 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** `scripts/precache_demo.py` runs the Planner and Places steps twice (`--runs 3` possible) and fills `cache_videos`. **Rejected:** One run.
 - **Why:** Gemini varies between runs; two runs cached 36 demo places. Re-run within 7 days of recording.
 - **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D54. Night views never move earlier than the Planner's time
+- **Chosen:** When re-timing from real legs, a `night_view` stop keeps at least Gemini's time; the stop before gets the extra minutes. **Rejected:** Calculating sunset (needs a per-country time-zone guess); only warning.
+- **Why:** The end-to-end test put Mt. Inasa at 16:55. Gemini already plans night views after sunset. Re-run: 20:45.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
+
+### D55. One rental-car branch for pickup and return
+- **Chosen:** The prompt asks for one specific branch with the same name at both ends; start/end stops keep Gemini's name, and English trips keep Gemini's name when Maps only has a local-script one. **Rejected:** Starting and ending at the station or airport.
+- **Why:** The test plan picked up at one company and returned at another.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
+
+### D56. No cities or regions as stops
+- **Chosen:** Prompt rule plus a check: a Places result typed as a city/region (and not as a point of interest) is treated as not found → replacement round. Adds `types` to the Places field mask. **Rejected:** Prompt only.
+- **Why:** The test plan had "Nagasaki" as a stop.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09

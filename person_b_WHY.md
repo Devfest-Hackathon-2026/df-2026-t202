@@ -243,9 +243,36 @@ Each decision is added here at the time it is made.
   cached with real videos, about a third of one day's YouTube quota. The cache lasts 7 days (YouTube allows 30).
 - **Decided by:** Person B
 
+
+### 29. Night views never move earlier than the Planner's time
+- **Date / task:** 2026-11-09, end-to-end test. Found: recalculating times from real legs put Mt. Inasa at 16:55,
+  in daylight.
+- **Options considered:** **Never earlier than Gemini's time; the stop before gets the extra time** ✅ · Calculate
+  sunset from coordinates (needs a time-zone guess per country, can be an hour off) · Only warn.
+- **Why:** Gemini already schedules night views after sunset; this keeps that with 3 lines and works worldwide.
+  Re-run: Mt. Inasa at 20:45.
+- **Decided by:** Person B
+
+### 30. One rental-car branch for pickup and return
+- **Found:** trips started at one rental company and ended at another, because Maps matched a vague "rental car at the
+  airport" to random companies; some names showed in Japanese in English plans.
+- **Options considered:** Start and end at the station or airport (car in `note` and `checks`) · **One specific
+  rental-car branch at both ends, same name** ✅.
+- **Why:** More concrete for travelers. Same name → same Maps result at both ends. We keep Gemini's names for start
+  and end stops (Google called the pickup branch "... Car Return") and Gemini's English name when Maps only has a
+  Japanese one.
+- **Decided by:** Person B
+
+### 31. No cities or regions as stops
+- **Found:** "Nagasaki" (the whole city) appeared as a stop.
+- **Options considered:** **Prompt rule + code check** ✅ (a Places result typed as a city/region and not as a place
+  goes to the replacement round; needs the `types` field) · Prompt only.
+- **Why:** Reliable: Gemini may still slip; the check catches it.
+- **Decided by:** Person B
+
 ---
 
-Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24, 25–28 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46, D47–D50 and D51–D53. Decisions 7 and 8 are covered there by
+Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24, 25–28, 29–31 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46, D47–D50, D51–D53 and D54–D56. Decisions 7 and 8 are covered there by
 Person A's D21 and D34.
 
 ---

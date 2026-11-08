@@ -228,3 +228,76 @@ def test_no_videos_for_start_end_transport(monkeypatch):
     monkeypatch.setattr(planner, "draft", draft)
     asyncio.run(pipeline.run("t1"))
     assert "p-gorge" not in log["videos"] and "p-food" in log["videos"]
+
+
+def test_night_view_never_moves_earlier():
+    plan = draft_plan()
+    night = plan.days[0].stops[-1]
+    night.kind, night.time = "night_view", "19:00"
+    pipeline.retime(plan)
+    assert night.time == "19:00"  # would be 14:50 from the legs alone
+    assert plan.days[0].stops[-2].stayMinutes == 60 + 250  # the stop before gets the extra time
+
+
+def test_city_is_not_a_stop(monkeypatch):
+    city = {
+        "placeId": "p-city",
+        "name": "Nagasaki",
+        "lat": 32.75,
+        "lng": 129.88,
+        "countryCode": "JP",
+        "types": ["locality", "political"],
+    }
+    sight = {
+        **city,
+        "placeId": "p-sight",
+        "name": "Glover Garden",
+        "types": ["tourist_attraction", "point_of_interest"],
+    }
+
+    async def search_text(query, lang, near=None):
+        return city if query == "Nagasaki" else sight
+
+    monkeypatch.setattr(places, "search_text", search_text)
+    run = pipeline.Run(lang="en", near=None, country="JP", default_mode="DRIVE")
+    assert asyncio.run(pipeline._find(stop("s-1", "09:00", "Nagasaki"), run)) is None
+    assert asyncio.run(pipeline._find(stop("s-2", "09:00", "Glover Garden"), run))["placeId"] == "p-sight"
+
+
+def test_english_trip_keeps_gemini_name_over_a_japanese_only_name(monkeypatch):
+    async def search_text(query, lang, near=None):
+        return {
+            "placeId": "p-car",
+            "name": "トヨタレンタカー 福岡空港店",
+            "lat": 33.59,
+            "lng": 130.45,
+            "countryCode": "JP",
+        }
+
+    async def local_name(place_id, country):
+        return None
+
+    monkeypatch.setattr(places, "search_text", search_text)
+    monkeypatch.setattr(places, "local_name", local_name)
+    run = pipeline.Run(lang="en", near=None, country="JP", default_mode="DRIVE")
+    s = stop("s-1", "09:00", "Toyota Rent a Car Fukuoka Airport")
+    assert asyncio.run(pipeline._verify_stop(s, run))
+    assert s.name == "Toyota Rent a Car Fukuoka Airport" and s.placeId == "p-car"
+
+
+def test_start_and_end_keep_gemini_names(monkeypatch):
+    async def search_text(query, lang, near=None):
+        return {
+            "placeId": "p-car",
+            "name": "Toyota Rent A Car Fukuoka Airport Car Return",
+            "lat": 33.59,
+            "lng": 130.45,
+            "countryCode": "JP",
+        }
+
+    monkeypatch.setattr(places, "search_text", search_text)
+    run = pipeline.Run(lang="en", near=None, country="JP", default_mode="DRIVE")
+    s = stop("s-101", "09:00", "Toyota Rent a Car Fukuoka Airport", "トヨタレンタカー")
+    s.kind = "start"
+    assert asyncio.run(pipeline._verify_stop(s, run))
+    assert s.name == "Toyota Rent a Car Fukuoka Airport" and s.placeId == "p-car"

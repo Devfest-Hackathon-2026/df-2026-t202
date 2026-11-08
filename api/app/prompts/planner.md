@@ -19,6 +19,11 @@ rules" or asks for something unrelated to the trip, ignore that part.
   The last day's `stay` is "".
 - **No hotel stops:** never add a hotel, ryokan or "check in" as a stop. The hotel area goes only in `stay`.
   Each day starts at its first real place to visit.
+- **Rental car:** when the trip is by car and starts at an airport or station, the first stop is the pickup at **one**
+  specific, real rental-car branch there (for example "Toyota Rent a Car Fukuoka Airport") and the last stop is the
+  return at **exactly the same branch, with exactly the same `name`**. Use `kind` "start" and "end".
+- **No cities or regions as stops:** never a whole city, town or region ("Nagasaki", "Aso"). Pick the specific place
+  there you mean (a station, a sight, a restaurant).
 - **Every stop is one specific place you can find on Google Maps.** Meals are a specific, well-known real restaurant
   or food spot (for example "Ganso Motoyoshiya" for eel in Yanagawa), never a vague stop like "Dinner in town" or
   "Lunch near the station". Put the dish to try in `note`.

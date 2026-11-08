@@ -22,7 +22,7 @@ from app.services import firestore
 
 BASE = "https://places.googleapis.com/v1"
 # regularOpeningHours is an Enterprise SKU field; we need it for the "outside opening hours" warning.
-PLACE_FIELDS = "id,displayName,location,regularOpeningHours,addressComponents"
+PLACE_FIELDS = "id,displayName,location,regularOpeningHours,addressComponents,types"
 SEARCH_FIELDS = ",".join(f"places.{f}" for f in PLACE_FIELDS.split(","))
 BIAS_RADIUS_M = 50_000.0  # the API maximum
 MAX_QUERY_CHARS = 200  # queries can be user text: keep them short
@@ -95,6 +95,7 @@ def parse_place(place: dict) -> dict:
         "lng": loc.get("longitude"),
         "countryCode": _country_code(place),
         "openingHours": place.get("regularOpeningHours"),
+        "types": place.get("types", []),
     }
 
 

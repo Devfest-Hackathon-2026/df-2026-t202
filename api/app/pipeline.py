@@ -35,6 +35,8 @@ WALK_UNDER_KM = 1.0  # short hops are walks
 MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D50)
 STALE_PLANNING = timedelta(minutes=10)  # a "planning" status older than this is a crashed run, not a running one
 NO_VIDEO_KINDS = {"start", "end", "transport"}  # stations, ports, rental cars: weak videos (D52)
+AREA_TYPES = {"country", "administrative_area_level_1", "administrative_area_level_2", "locality", "colloquial_area"}
+PLACE_TYPES = {"point_of_interest", "establishment", "tourist_attraction"}  # a real place, even inside a town
 TRANSPORT_MODE = {"car": "DRIVE", "train": "TRANSIT", "shinkansen": "TRANSIT", "bus": "TRANSIT"}
 
 # Server-written text in the trip language (person_b_WHY.md: plan text follows trips.language).
@@ -107,6 +109,9 @@ async def _find(stop: Stop, run: Run) -> dict | None:
         return None  # same name in another country: a wrong match (D49)
     if guess and found.get("lat") is not None and km_between(guess, (found["lat"], found["lng"])) > MAX_FROM_GUESS_KM:
         return None  # same name, wrong town (D50)
+    types = set(found.get("types") or [])
+    if types & AREA_TYPES and not types & PLACE_TYPES:
+        return None  # a whole city or region, not a place to visit (D56)
     return found
 
 
@@ -115,7 +120,10 @@ async def _verify_stop(stop: Stop, run: Run) -> bool:
     if not found:
         return False
     stop.placeId, stop.lat, stop.lng = found["placeId"], found["lat"], found["lng"]
-    stop.name = found["name"] or stop.name  # official name in the trip language
+    # Official name in the trip language, except: keep Gemini's English name over a local-script one, and keep the
+    # start/end names (Google may call the pickup branch "... Car Return") (D55).
+    if found["name"] and stop.kind not in ("start", "end") and (run.lang != "en" or found["name"].isascii()):
+        stop.name = found["name"]
     run.hours[stop.id] = found.get("openingHours")
     if not stop.nameLocal:
         stop.nameLocal = await places.local_name(found["placeId"], found.get("countryCode") or run.country or "")
@@ -192,11 +200,19 @@ def _hhmm(minutes: int) -> str:
 
 
 def retime(plan: Plan) -> None:
-    """Keep each day's first time; next = previous + stay + travel, rounded up to 5 minutes."""
+    """Keep each day's first time; next = previous + stay + travel, rounded up to 5 minutes.
+
+    A night view never moves earlier than the Planner's time (Gemini schedules it after sunset): when we'd arrive
+    early, the stop before gets the extra time (D54).
+    """
     for day in plan.days:
         t = _minutes(day.stops[0].time)
         for a, b in zip(day.stops, day.stops[1:], strict=False):
             t = math.ceil((t + a.stayMinutes + (a.leg.minutes if a.leg else 0)) / 5) * 5
+            planned = _minutes(b.time)
+            if b.kind == "night_view" and planned > t:
+                a.stayMinutes += planned - t
+                t = planned
             b.time = _hhmm(t)
 
 
