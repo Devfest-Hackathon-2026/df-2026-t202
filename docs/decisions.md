@@ -227,3 +227,43 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Rejected:** Letting it raise (a 500 for the user). Returning `None` (tells the user the place doesn't exist, which is wrong).
 - **Why:** Person B's `places.search_text` raises on failure by design (it retries once inside).
 - **Decided by:** Claude (requested by Person B) · 2026-11-08
+
+## Back end: plan engine (Person B)
+
+Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY.md).
+
+### D35. Places searches include opening hours
+- **Chosen:** Request `regularOpeningHours` in every Places search.
+- **Rejected:** Dropping it (plans could send people to closed places). A second call only for some stops (more code and calls).
+- **Why:** It powers the "you arrive after closing time" warning. It moves searches to Google's most expensive Places tier, but with about 25 stops per plan the cost stays small.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D36. Driving times ignore live traffic (`TRAFFIC_UNAWARE`)
+- **Chosen:** `TRAFFIC_UNAWARE` for `DRIVE` legs.
+- **Rejected:** `TRAFFIC_AWARE`. It costs more and is slower.
+- **Why:** Trips are planned weeks or months ahead, so today's traffic says nothing about the trip day.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D37. Places API failure: retry once, then raise
+- **Chosen:** Retry once on temporary errors (429, 500, 502, 503, 504, network drops), then raise. Errors that can't change on a retry (wrong key, bad request) raise at once.
+- **Rejected:** Failing at once (one hiccup breaks a plan). Returning `None` (a broken key would silently look like "not found").
+- **Why:** A short Google hiccup shouldn't break a live demo, but real problems must be visible. The chat side handles the error in D34.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D38. Routes failure or no route → keep the Planner's estimate with a "Please check" badge
+- **Chosen:** `routes.leg` returns `None`; the pipeline keeps the Planner's minutes with `estimate: true`. Failures are logged.
+- **Rejected:** Failing the plan. A missing route is normal (ferries, countries without transit data).
+- **Why:** The plan still finishes, and the UI already has an honest badge for estimates.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D39. `cache_places` stores only `query → placeId` (Google's Places policy)
+- **Chosen:** Cache only the place ID. A cache hit looks the place up fresh by ID (Place Details). `local_name` isn't cached.
+- **Rejected:** Caching full results forever (PLAN.md 7.1 as written). Caching everything for 30 days. No cache at all.
+- **Why:** Google's [Places policies](https://developers.google.com/maps/documentation/places/web-service/policies) allow storing place IDs forever and coordinates for 30 days, but not names or opening hours. Licensing is judged. Repeat runs also get exactly the same place. PLAN.md 7.1 needs a small follow-up PR for the `cache_places` fields.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D40. A broken Places cache is skipped, not fatal
+- **Chosen:** If `cache_get` / `cache_set` fail (Firestore down, no credentials), log a warning and call Google directly.
+- **Rejected:** Raising like other errors. A cache hiccup would break plans and the chat even though Places works.
+- **Why:** The cache only saves calls; it isn't needed for a correct answer.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
