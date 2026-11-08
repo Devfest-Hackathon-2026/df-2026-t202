@@ -1,0 +1,12 @@
+{
+  "app": { "name": "AI Trip Planner" },
+  "home": { "title": "マイ旅行", "newTrip": "新しい旅行" },
+  "chat": { "title": "旅行を計画する", "notDecided": "まだ決めていない", "send": "送信" },
+  "plan": {
+    "title": "旅行プラン",
+    "progress": { "spots": "スポットを探しています", "routes": "移動時間を計算しています", "videos": "動画を探しています", "done": "完了" },
+    "badge": { "estimate": "概算", "pleaseCheck": "要確認" }
+  },
+  "share": { "title": "共有された旅行" },
+  "language": { "en": "English", "ja": "日本語" }
+}

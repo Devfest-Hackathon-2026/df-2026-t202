@@ -1,0 +1,12 @@
+{
+  "app": { "name": "AI Trip Planner" },
+  "home": { "title": "My trips", "newTrip": "New trip" },
+  "chat": { "title": "Plan your trip", "notDecided": "Not decided yet", "send": "Send" },
+  "plan": {
+    "title": "Your trip",
+    "progress": { "spots": "Finding spots", "routes": "Calculating travel times", "videos": "Finding videos", "done": "Done" },
+    "badge": { "estimate": "Estimate", "pleaseCheck": "Please check" }
+  },
+  "share": { "title": "Shared trip" },
+  "language": { "en": "English", "ja": "日本語" }
+}
