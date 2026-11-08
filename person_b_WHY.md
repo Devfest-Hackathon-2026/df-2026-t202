@@ -260,7 +260,7 @@ Each decision is added here at the time it is made.
   rental-car branch at both ends, same name** ✅.
 - **Why:** More concrete for travelers. Same name → same Maps result at both ends. We keep Gemini's names for start
   and end stops (Google called the pickup branch "... Car Return") and Gemini's English name when Maps only has a
-  Japanese one.
+  Japanese one. Japanese plans may show the branch in English (Gemini's name); left as is: cosmetic only.
 - **Decided by:** Person B
 
 ### 31. No cities or regions as stops
@@ -270,9 +270,21 @@ Each decision is added here at the time it is made.
 - **Why:** Reliable: Gemini may still slip; the check catches it.
 - **Decided by:** Person B
 
+
+### 32. YouTube: at most 4 searches at once; stop searching once the daily quota is used up
+- **Date / task:** 2026-11-09, end-to-end rerun. Found: YouTube answered 429 for many stops. First I thought it was
+  too many parallel searches, but the error said **"Search Queries per day"**: our test runs had used up the daily
+  quota (about 100 searches).
+- **Options considered:** **Keep 4 at a time, no retry; on a quota error stop searching until YouTube's reset
+  (midnight Pacific = 17:00 JST)** ✅ · 4 at a time + retry once (each retry just fails again when the quota is gone)
+  · Revert.
+- **Why:** No wasted calls or waiting when the quota is gone: tested, 3 stops → 1 YouTube call in 0.2 s. The demo
+  stops are pre-cached, so they need no quota. Lesson: tests with an empty cache spend real quota, so keep them few.
+- **Decided by:** Person B
+
 ---
 
-Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24, 25–28, 29–31 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46, D47–D50, D51–D53 and D54–D56. Decisions 7 and 8 are covered there by
+Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24, 25–28, 29–32 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46, D47–D50, D51–D53 and D54–D57. Decisions 7 and 8 are covered there by
 Person A's D21 and D34.
 
 ---

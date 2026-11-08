@@ -2,6 +2,7 @@
 
 search.list: type=video, videoDuration=short, maxResults=5, regionCode=destination, q="<local name> shorts",
 no relevanceLanguage (videos in any language are fine). Titles that contain the spot name come first.
+At most 4 searches run at once (pipeline). Once the daily quota is used up, we stop searching until it resets.
 videos.list then drops "Made for Kids" videos (YouTube policy III.E.4.j; person_b_WHY.md decision 27).
 
 Videos are optional: on any failure (quota used up, no key) we return [] and the front end shows its fallback.
@@ -12,7 +13,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -23,6 +25,10 @@ SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 CACHE_FOR = timedelta(days=7)
 MAX_VIDEOS = 3
+QUOTA_REASONS = {"quotaExceeded", "rateLimitExceeded", "dailyLimitExceeded"}
+QUOTA_RESETS_IN = ZoneInfo("America/Los_Angeles")  # YouTube's daily quota resets at midnight Pacific time
+
+_quota_out_until: datetime | None = None  # set when YouTube says the daily quota is used up (D57)
 
 _client = httpx.AsyncClient(timeout=10.0)
 log = logging.getLogger(__name__)
@@ -59,6 +65,28 @@ def rank(items: list[dict], name: str) -> list[str]:
     return with_name + others
 
 
+async def _get(url: str, params: dict) -> httpx.Response:
+    resp = await _client.get(url, params=params)
+    resp.raise_for_status()
+    return resp
+
+
+def _quota_used_up(resp: httpx.Response) -> bool:
+    if resp.status_code not in (403, 429):
+        return False
+    try:
+        errors = resp.json().get("error", {}).get("errors", [])
+    except ValueError:
+        return False
+    return any(e.get("reason") in QUOTA_REASONS for e in errors)
+
+
+def _next_reset(now: datetime) -> datetime:
+    """The next midnight in Pacific time."""
+    pacific = now.astimezone(QUOTA_RESETS_IN)
+    return (pacific + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 async def _search(query: str, region: str | None, key: str) -> list[dict]:
     params = {
         "part": "snippet",
@@ -71,25 +99,26 @@ async def _search(query: str, region: str | None, key: str) -> list[dict]:
     }
     if region:
         params["regionCode"] = region
-    resp = await _client.get(SEARCH_URL, params=params)
-    resp.raise_for_status()
+    resp = await _get(SEARCH_URL, params)
     return [i for i in resp.json().get("items", []) if i.get("id", {}).get("videoId")]
 
 
 async def _made_for_kids(ids: list[str], key: str) -> set[str]:
     params = {"part": "status", "id": ",".join(ids), "fields": "items(id,status/madeForKids)", "key": key}
-    resp = await _client.get(VIDEOS_URL, params=params)
-    resp.raise_for_status()
+    resp = await _get(VIDEOS_URL, params)
     return {i["id"] for i in resp.json().get("items", []) if i.get("status", {}).get("madeForKids")}
 
 
 async def shorts_for(place_id: str, name_local: str, region: str) -> list[str]:
     """Return up to 3 Shorts video ids for a stop (titles with the spot name first). Empty list is OK."""
+    global _quota_out_until
     if not place_id or not name_local:
         return []
     cached = await _cached(place_id)
     if cached is not None:
         return cached
+    if _quota_out_until and firestore.now() < _quota_out_until:
+        return []  # quota used up today: don't spend time on calls YouTube will refuse
     key = _key()
     if not key:
         log.warning(json.dumps({"event": "youtube_key_missing"}))
@@ -103,7 +132,11 @@ async def shorts_for(place_id: str, name_local: str, region: str) -> list[str]:
             ids = [i for i in ids if i not in kids]
     except httpx.HTTPError as e:  # quota used up, network: no videos this time, and don't cache the failure
         status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
-        log.warning(json.dumps({"event": "youtube_error", "status": status, "error": type(e).__name__}))
+        if isinstance(e, httpx.HTTPStatusError) and _quota_used_up(e.response):
+            _quota_out_until = _next_reset(firestore.now())
+            log.warning(json.dumps({"event": "youtube_quota_out", "until": _quota_out_until.isoformat()}))
+        else:
+            log.warning(json.dumps({"event": "youtube_error", "status": status, "error": type(e).__name__}))
         return []
 
     ids = ids[:MAX_VIDEOS]

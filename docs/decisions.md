@@ -349,3 +349,8 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** Prompt rule plus a check: a Places result typed as a city/region (and not as a point of interest) is treated as not found → replacement round. Adds `types` to the Places field mask. **Rejected:** Prompt only.
 - **Why:** The test plan had "Nagasaki" as a stop.
 - **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
+
+### D57. YouTube: at most 4 searches at once; stop searching until the daily reset once the quota is used up
+- **Chosen:** A semaphore of 4 in the pipeline's videos step. When YouTube answers 403/429 with a quota reason, `youtube.py` skips all searches until midnight Pacific (17:00 JST); those stops show the fallback. **Rejected:** Retrying 429s (each retry fails again when the daily quota is gone); no change.
+- **Why:** The end-to-end rerun used up the ~100 searches/day quota. Real check: 3 stops → 1 call in 0.2 s. Demo stops are pre-cached and use no quota; keep empty-cache test runs few.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09

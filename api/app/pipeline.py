@@ -34,6 +34,7 @@ FIX_AT_WARNINGS = 3  # this many warnings -> one repair round (step 7)
 WALK_UNDER_KM = 1.0  # short hops are walks
 MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D50)
 STALE_PLANNING = timedelta(minutes=10)  # a "planning" status older than this is a crashed run, not a running one
+YOUTUBE_PARALLEL = 4  # more at once and YouTube answers 429 "too many requests" (D57)
 NO_VIDEO_KINDS = {"start", "end", "transport"}  # stations, ports, rental cars: weak videos (D52)
 AREA_TYPES = {"country", "administrative_area_level_1", "administrative_area_level_2", "locality", "colloquial_area"}
 PLACE_TYPES = {"point_of_interest", "establishment", "tourist_attraction"}  # a real place, even inside a town
@@ -263,9 +264,13 @@ def add_warnings(plan: Plan, run: Run) -> list[str]:
 async def add_videos(plan: Plan, run: Run) -> None:
     """Up to 3 Shorts per stop with a placeId, except start/end/transport stops. Cached for 7 days."""
     stops = [s for day in plan.days for s in day.stops if s.placeId and s.kind not in NO_VIDEO_KINDS]
-    found = await asyncio.gather(
-        *(youtube.shorts_for(s.placeId, s.nameLocal or s.name, run.country or "") for s in stops)
-    )
+    limit = asyncio.Semaphore(YOUTUBE_PARALLEL)
+
+    async def one(stop: Stop) -> list[str]:
+        async with limit:
+            return await youtube.shorts_for(stop.placeId, stop.nameLocal or stop.name, run.country or "")
+
+    found = await asyncio.gather(*(one(s) for s in stops))
     for stop, ids in zip(stops, found, strict=True):
         stop.videoIds = ids
 

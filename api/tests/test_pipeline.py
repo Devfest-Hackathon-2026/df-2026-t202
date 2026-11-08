@@ -301,3 +301,23 @@ def test_start_and_end_keep_gemini_names(monkeypatch):
     s.kind = "start"
     assert asyncio.run(pipeline._verify_stop(s, run))
     assert s.name == "Toyota Rent a Car Fukuoka Airport" and s.placeId == "p-car"
+
+
+def test_at_most_4_youtube_searches_at_once(monkeypatch):
+    running, peak = 0, 0
+
+    async def shorts_for(place_id, name_local, region):
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return ["v"]
+
+    monkeypatch.setattr(youtube, "shorts_for", shorts_for)
+    plan = draft_plan()
+    plan.days[0].stops = [stop(f"s-1{i:02d}", "09:00", f"Spot {i}") for i in range(12)]
+    for s in plan.days[0].stops:
+        s.placeId = "p"
+    asyncio.run(pipeline.add_videos(plan, pipeline.Run(lang="en", near=None, country="JP", default_mode="DRIVE")))
+    assert peak == 4 and all(s.videoIds == ["v"] for s in plan.days[0].stops)
