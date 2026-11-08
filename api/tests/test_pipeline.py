@@ -7,7 +7,7 @@ from app import pipeline
 from app.agents import planner
 from app.models import Day, Leg, Plan, Stop
 from app.services import firestore as fs
-from app.services import places, routes
+from app.services import places, routes, youtube
 
 KYUSHU = {"label": "Kyushu", "countryCode": "JP", "lat": 32.59, "lng": 130.8}
 SLOTS = {"dest": KYUSHU, "transport": ["car"], "dates": {"start": "2027-03-10", "end": "2027-03-10"}}
@@ -96,6 +96,10 @@ def fake_world(monkeypatch, replace_with=None):
     async def local_name(place_id, country):
         return "黒川温泉" if place_id == "p-onsen" else None
 
+    async def shorts_for(place_id, name_local, region):
+        log.setdefault("videos", []).append(place_id)
+        return [f"vid-{place_id}"]
+
     async def leg(a, b, mode, lang):
         log["routes"].append(mode)
         return {"minutes": 50, "polyline": "abc"}
@@ -110,6 +114,7 @@ def fake_world(monkeypatch, replace_with=None):
         (places, "search_text", search_text),
         (places, "local_name", local_name),
         (routes, "leg", leg),
+        (youtube, "shorts_for", shorts_for),
     ]:
         monkeypatch.setattr(target, name, fn)
     return log
@@ -129,6 +134,7 @@ def test_full_run_replaces_a_wrong_country_match(monkeypatch):
     assert gorge.leg.mode == "WALK"  # under 1 km to the restaurant
     assert plan.days[0].stops[-1].leg is None
     assert log["progress"] == ["routes", "videos"]
+    assert gorge.videoIds == ["vid-p-gorge"]
     assert plan.checks == []
 
 
@@ -205,3 +211,20 @@ def test_match_far_from_the_rough_location_is_rejected(monkeypatch):
     assert asyncio.run(pipeline._find(far, run)) is None
     assert asyncio.run(pipeline._find(near, run))["placeId"] == "p-food"
     assert calls[0] == (33.19, 130.02)  # searched near the Planner's guess, not the middle of Kyushu
+
+
+def test_no_videos_for_start_end_transport(monkeypatch):
+    log = fake_world(monkeypatch, replace_with="Kurokawa Onsen")
+    original = draft_plan
+
+    def with_kinds():
+        plan = original()
+        plan.days[0].stops[0].kind = "start"
+        return plan
+
+    async def draft(slots, messages, lang):
+        return with_kinds()
+
+    monkeypatch.setattr(planner, "draft", draft)
+    asyncio.run(pipeline.run("t1"))
+    assert "p-gorge" not in log["videos"] and "p-food" in log["videos"]

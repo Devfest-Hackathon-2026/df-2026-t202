@@ -216,9 +216,36 @@ Each decision is added here at the time it is made.
   the exact coordinates. Re-run: every stop in the right town, 31 s, no repair round needed.
 - **Decided by:** Person B
 
+
+### 25. A separate API key for YouTube
+- **Date / task:** 2026-11-08, T5 (`services/youtube.py`)
+- **Options considered:** **New key restricted to YouTube Data API v3** ✅ · Add YouTube to the Maps key.
+- **Why:** If one key leaks, the other APIs stay safe, and usage is easier to see per key.
+- **Decided by:** Person B
+
+### 26. Shorts for every stop except start, end and transport
+- **Options considered:** **All except start/end/transport** ✅ · Sights only, no food · Every stop.
+- **Why:** YouTube allows about 100 searches a day. Stations, ports and rental-car offices give weak videos;
+  restaurants are worth a video. About 15 searches per new plan.
+- **Decided by:** Person B
+
+### 27. Skip "Made for Kids" videos
+- **Found:** YouTube's developer policy (III.E.4.j) requires checking each video's Made for Kids status and turning
+  off tracking for those.
+- **Options considered:** **Drop them with one cheap `videos.list` call** ✅ · Keep them and have the front end turn off
+  tracking (needs a `models.py` field and front-end work).
+- **Why:** Compliant with no contract change; travel Shorts are rarely made for kids.
+- **Decided by:** Person B
+
+### 28. The demo pre-cache runs the pipeline twice
+- **Options considered:** One run (the spec) · **Two or three runs** ✅ (default 2, `--runs 3` possible).
+- **Why:** Gemini varies between runs, so two runs cover more of the stops the live demo may pick. Result: 36 places
+  cached with real videos, about a third of one day's YouTube quota. The cache lasts 7 days (YouTube allows 30).
+- **Decided by:** Person B
+
 ---
 
-Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46 and D47–D50. Decisions 7 and 8 are covered there by
+Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24, 25–28 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46, D47–D50 and D51–D53. Decisions 7 and 8 are covered there by
 Person A's D21 and D34.
 
 ---

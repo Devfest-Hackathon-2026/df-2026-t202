@@ -319,3 +319,18 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** The Planner returns approximate `lat`/`lng` per stop; Places searches near it and the pipeline rejects matches more than 30 km away (→ replacement round). **Rejected:** Searching near the previous stop (sequential, slower); no check.
 - **Why:** The first real run matched a same-named restaurant 100 km away in the same country. No extra API calls. Re-run: all stops in the right town, 31 s total.
 - **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D51. Separate YouTube API key; Shorts for all stops except start/end/transport
+- **Chosen:** A key restricted to YouTube Data API v3 only. Up to 3 Shorts per stop, skipping stations, ports and rental-car offices. **Rejected:** One shared key; Shorts for every stop; sights only.
+- **Why:** Least privilege. YouTube allows about 100 searches a day; about 15 per new plan, cached 7 days per place.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D52. Drop "Made for Kids" videos
+- **Chosen:** One `videos.list` call (1 quota unit) reads `status.madeForKids`; those videos are dropped. **Rejected:** Keeping them with tracking turned off in the player (needs a `models.py` field and front-end work).
+- **Why:** YouTube developer policy III.E.4.j. Also: the front end should keep autoplay off (III.E.4.i). Cached API data stays under YouTube's 30-day limit (7-day cache).
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D53. Demo pre-cache runs the pipeline twice
+- **Chosen:** `scripts/precache_demo.py` runs the Planner and Places steps twice (`--runs 3` possible) and fills `cache_videos`. **Rejected:** One run.
+- **Why:** Gemini varies between runs; two runs cached 36 demo places. Re-run within 7 days of recording.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08

@@ -4,7 +4,7 @@
 3. verify stops with Places; missing ones get one Planner replacement round, then are dropped with a note
 4. progress "routes": real legs from Routes    5. re-time each day
 6. warnings: long driving, closed on arrival   7. >= 3 warnings -> planner.fix once, redo 3-6
-8. progress "videos" (T5)                      9. save_plan -> planId
+8. progress "videos": YouTube Shorts         9. save_plan -> planId
 On any error: status "error", then re-raise (the router turns it into an HTTP error).
 Plan quality comes before speed (D44); every API call inside a step runs in parallel.
 """
@@ -25,7 +25,7 @@ from google.cloud import firestore as gfs
 from app.agents import planner
 from app.models import Leg, Plan, Slots, Stop
 from app.services import firestore as fs
-from app.services import places, routes
+from app.services import places, routes, youtube
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ FIX_AT_WARNINGS = 3  # this many warnings -> one repair round (step 7)
 WALK_UNDER_KM = 1.0  # short hops are walks
 MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D50)
 STALE_PLANNING = timedelta(minutes=10)  # a "planning" status older than this is a crashed run, not a running one
+NO_VIDEO_KINDS = {"start", "end", "transport"}  # stations, ports, rental cars: weak videos (D52)
 TRANSPORT_MODE = {"car": "DRIVE", "train": "TRANSIT", "shinkansen": "TRANSIT", "bus": "TRANSIT"}
 
 # Server-written text in the trip language (person_b_WHY.md: plan text follows trips.language).
@@ -240,6 +241,19 @@ def add_warnings(plan: Plan, run: Run) -> list[str]:
     return found
 
 
+# ---------- 8. Videos ----------
+
+
+async def add_videos(plan: Plan, run: Run) -> None:
+    """Up to 3 Shorts per stop with a placeId, except start/end/transport stops. Cached for 7 days."""
+    stops = [s for day in plan.days for s in day.stops if s.placeId and s.kind not in NO_VIDEO_KINDS]
+    found = await asyncio.gather(
+        *(youtube.shorts_for(s.placeId, s.nameLocal or s.name, run.country or "") for s in stops)
+    )
+    for stop, ids in zip(stops, found, strict=True):
+        stop.videoIds = ids
+
+
 # ---------- The whole run ----------
 
 
@@ -285,7 +299,8 @@ async def run(trip_id: str) -> str:
         stage["routes"] = time.perf_counter() - started
 
         await fs.update_trip(trip_id, {"progress": "videos"})
-        # TODO(T5): fill stop.videoIds with youtube.shorts_for(...)
+        await add_videos(plan, r)
+        stage["videos"] = time.perf_counter() - started
 
         plan_id = await fs.save_plan(trip_id, plan)
         log.info(
