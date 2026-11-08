@@ -6,10 +6,12 @@ from pathlib import Path
 from app.models import STEP_ORDER, ConciergeOutput, Plan, Slots, UiCard
 
 FIXTURES = Path(__file__).parent / "fixtures"
+APP_FIXTURES = Path(__file__).parents[1] / "app" / "fixtures"  # demo_plan.json ships with the app (plan stub)
 
 
 def load(name: str) -> dict:
-    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    path = FIXTURES / name if (FIXTURES / name).exists() else APP_FIXTURES / name
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def minutes(hhmm: str) -> int:

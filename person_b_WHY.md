@@ -121,9 +121,40 @@ Each decision is added here at the time it is made.
 - **Why:** The cache only saves calls; it isn't needed for a correct answer.
 - **Decided by:** Person B
 
+
+### 11. Only the trip owner can generate a plan
+- **Date / task:** 2026-11-08, T2 (`routers/plan.py`)
+- **Options considered:** **Owner only (`require_owner`)** ✅ · Any member (`require_member`, the spec's wording).
+- **Why:** Shared links are view only (PLAN.md F5). With "any member", a friend with the link could overwrite the plan
+  and use up the owner's 20 plans a day.
+- **Decided by:** Person B (differs from the spec's wording; Person A told)
+
+### 12. The stub returns the existing 4-day demo plan
+- **Options considered:** **Keep the 4-day `demo_plan.json`** ✅ · Write the small 2-day plan from the spec.
+- **Why:** It's already valid and gives the front end real cases to design for: 4 day colors, a ferry leg marked
+  "Please check", Japanese local names.
+- **Decided by:** Person B
+
+### 13. The stub steps through the progress stages
+- **Options considered:** **spots → routes → videos, about 1 s each** ✅ · Save instantly.
+- **Why:** The front end can build the progress screen now instead of waiting for T4. The pauses go away in T4.
+- **Decided by:** Person B
+
+### 14. Stub calls don't count toward the daily plan limit
+- **Options considered:** **Don't count** ✅ · Count them now.
+- **Why:** The stub calls no paid API, so front-end developers can test freely. T4 adds `check_plan_limit`.
+- **Decided by:** Person B
+
+### 15. `demo_plan.json` moves into `app/fixtures/`
+- **Found:** the Cloud Run image only copies `app/` (`tests/` is excluded), so the stub would crash once deployed.
+- **Options considered:** **Move the file into `app/`** ✅ · Person A changes the Dockerfile to copy `tests/fixtures`
+  (touches their files, puts test files in production) · The stub works locally only.
+- **Why:** It works on Cloud Run without touching Person A's files. Only path references change.
+- **Decided by:** Person B
+
 ---
 
-Team log: decisions 3–6 and 9–10 are also in `docs/decisions.md` as D35–D40. Decisions 7 and 8 are covered there by
+Team log: decisions 3–6, 9–10 and 11–15 are also in `docs/decisions.md` as D35–D40 and D41–D43. Decisions 7 and 8 are covered there by
 Person A's D21 and D34.
 
 ---

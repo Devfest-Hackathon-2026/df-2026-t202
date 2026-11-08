@@ -183,9 +183,10 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
    │  │  ├─ llm.py          ← Gemini via Vertex AI: generate_json(model, system, user, schema)
    │  │  └─ limits.py       ← per-user daily plan limit
    │  ├─ pipeline.py        ← plan pipeline (section 9.3)
-   │  └─ prompts/           ← system prompts as .md files
+   │  ├─ prompts/           ← system prompts as .md files
+   │  └─ fixtures/          ← demo_plan.json (Kyushu demo plan; ships with the app for the /plan stub)
    └─ tests/
-      └─ fixtures/          ← demo_slots.json, demo_plan.json (Kyushu demo)
+      └─ fixtures/          ← demo_slots.json (Kyushu demo input)
 ```
 
 ---

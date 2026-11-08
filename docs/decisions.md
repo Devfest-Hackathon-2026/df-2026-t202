@@ -267,3 +267,19 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Rejected:** Raising like other errors. A cache hiccup would break plans and the chat even though Places works.
 - **Why:** The cache only saves calls; it isn't needed for a correct answer.
 - **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D41. Only the trip owner can generate a plan
+- **Chosen:** `POST /trips/{id}/plan` uses `require_owner`. **Rejected:** `require_member` (the spec's wording).
+- **Why:** Shared links are view only (F5). A viewer could otherwise overwrite the plan and use up the owner's daily limit.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D42. Plan stub (T2) returns the 4-day demo plan and steps through the progress stages
+- **Chosen:** Save `demo_plan.json` after writing progress spots → routes → videos (about 1 s each), with `reason: "stub"`. No daily-limit count.
+- **Rejected:** A smaller 2-day plan; saving instantly; counting stub calls.
+- **Why:** The front end can build the trip page and the progress screen before the real pipeline exists. The stub calls no paid API. It is replaced in T4 and never shown in the demo video.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D43. `demo_plan.json` lives in `api/app/fixtures/`
+- **Chosen:** Move it from `tests/fixtures/` into `app/`. **Rejected:** Copying `tests/` into the Cloud Run image; a local-only stub.
+- **Why:** The image only contains `app/`, so the stub needs the file there. No change to the deploy files.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08

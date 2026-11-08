@@ -12,7 +12,7 @@ If the code needs to differ from PLAN.md, **update PLAN.md in the same commit**,
 | --- | --- |
 | What to build, data shapes, API, screens | `PLAN.md` |
 | Pydantic models (the code version of PLAN.md 7) | `api/app/models.py` |
-| Kyushu demo input and a hand-written plan | `api/tests/fixtures/demo_slots.json`, `demo_plan.json` |
+| Kyushu demo input and a hand-written plan | `api/tests/fixtures/demo_slots.json`, `api/app/fixtures/demo_plan.json` |
 | Judging criteria and disqualifiers (kickoff slides) | `docs/SUBMISSION.md` |
 | Libraries and licenses | `ATTRIBUTION.md` |
 | Where and why we used AI | `docs/ai-usage.md` |
