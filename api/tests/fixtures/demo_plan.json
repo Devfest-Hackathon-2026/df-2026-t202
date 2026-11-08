@@ -83,7 +83,7 @@
         {
           "id": "s-302", "time": "10:15", "name": "Shimabara Castle", "nameLocal": "島原城", "kind": "sight",
           "placeId": null, "lat": 32.7889, "lng": 130.3672,
-          "note": null, "videoIds": [], "warn": null,
+          "note": "", "videoIds": [], "warn": null,
           "leg": {"mode": "DRIVE", "minutes": 45, "polyline": null, "estimate": false}
         },
         {
@@ -110,18 +110,18 @@
       "day": 4,
       "date": "2027-03-13",
       "theme": "Nagasaki → Yutoku Inari → Fukuoka",
-      "stay": null,
+      "stay": "",
       "stops": [
         {
           "id": "s-401", "time": "09:30", "name": "Nagasaki Peace Park", "nameLocal": "平和公園", "kind": "sight",
           "placeId": null, "lat": 32.7766, "lng": 129.8636,
-          "note": null, "videoIds": [], "warn": null,
+          "note": "", "videoIds": [], "warn": null,
           "leg": {"mode": "DRIVE", "minutes": 120, "polyline": null, "estimate": false}
         },
         {
           "id": "s-402", "time": "12:30", "name": "Yutoku Inari Shrine", "nameLocal": "祐徳稲荷神社", "kind": "sight",
           "placeId": null, "lat": 33.0929, "lng": 130.0786,
-          "note": null, "videoIds": [], "warn": null,
+          "note": "", "videoIds": [], "warn": null,
           "leg": {"mode": "DRIVE", "minutes": 80, "polyline": null, "estimate": false}
         },
         {

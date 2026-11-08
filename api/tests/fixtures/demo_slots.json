@@ -1,6 +1,6 @@
 {
-  "dest": {"label": "Kyushu, Japan", "placeId": null, "countryCode": "JP"},
-  "origin": {"label": "Fukuoka", "placeId": null, "countryCode": "JP"},
+  "dest": {"label": "Kyushu, Japan", "countryCode": "JP", "lat": 32.59, "lng": 130.8},
+  "origin": {"label": "Fukuoka", "countryCode": "JP", "lat": 33.59, "lng": 130.42},
   "dates": {"start": "2027-03-10", "end": "2027-03-13"},
   "nights": null,
   "people": {"adult": 4, "child": 0, "infant": 0},
@@ -8,13 +8,6 @@
   "transport": ["car"],
   "prefs": ["onsen", "views", "night_view"],
   "musts": ["Takachiho Gorge", "Mt. Inasa night view"],
-  "status": {
-    "dest": "done",
-    "dates": "done",
-    "people": "done",
-    "budget": "done",
-    "transport": "done",
-    "prefs": "done",
-    "musts": "done"
-  }
+  "status": {"dest": "done", "dates": "done", "people": "done", "budget": "done",
+             "transport": "done", "prefs": "done", "musts": "done"}
 }

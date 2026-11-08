@@ -10,8 +10,8 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+# models.py is the shared contract, copied word for word from the team spec. Never auto-fix or reformat it.
+extend-exclude = ["app/models.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
-# models.py uses camelCase field names to match Firestore exactly (PLAN.md 7)
-per-file-ignores = { "app/models.py" = ["N815"] }
