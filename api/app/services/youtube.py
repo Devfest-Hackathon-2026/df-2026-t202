@@ -1,12 +1,14 @@
 """YouTube Shorts per stop (Person B). BACKEND_PERSON_B.md T5, PLAN.md 9.4.
 
 search.list: type=video, videoDuration=short, maxResults=5, regionCode=destination, q="<local name> shorts",
-no relevanceLanguage (videos in any language are fine). Titles that contain the spot name come first.
-At most 4 searches run at once (pipeline). Once the daily quota is used up, we stop searching until it resets.
+no relevanceLanguage (videos in any language are fine). Only videos whose title names the spot are kept (a search for
+a ramen shop can return an unrelated clip). At most 4 searches run at once (pipeline). Once the daily quota is used up
+(quotaExceeded), we stop searching until it resets; a short burst limit (rateLimitExceeded) only skips that stop.
 videos.list then drops "Made for Kids" videos (YouTube policy III.E.4.j; person_b_WHY.md decision 27).
 
 Videos are optional: on any failure (quota used up, no key) we return [] and the front end shows its fallback.
-Cache: cache_videos/{placeId} for 7 days (YouTube allows API data for at most 30 days; quota is ~100 searches a day).
+Cache: cache_videos/{placeId} for 7 days, "no videos" for 1 day (YouTube allows API data for at most 30 days;
+quota is ~100 searches a day).
 """
 
 from __future__ import annotations
@@ -20,17 +22,19 @@ import httpx
 
 from app.config import get_settings
 from app.services import firestore
+from app.services.places import mentions
 
 SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 CACHE_FOR = timedelta(days=7)
+CACHE_EMPTY_FOR = timedelta(days=1)  # "no videos" may change soon (new uploads, a better name next run)
 MAX_VIDEOS = 3
-QUOTA_REASONS = {"quotaExceeded", "rateLimitExceeded", "dailyLimitExceeded"}
+QUOTA_REASONS = {"quotaExceeded", "dailyLimitExceeded"}  # the daily quota; rateLimitExceeded is a short burst limit
 QUOTA_RESETS_IN = ZoneInfo("America/Los_Angeles")  # YouTube's daily quota resets at midnight Pacific time
 
 _quota_out_until: datetime | None = None  # set when YouTube says the daily quota is used up (D57)
 
-_client = httpx.AsyncClient(timeout=10.0)
+_client = httpx.AsyncClient(timeout=5.0)  # videos are optional: don't let a slow call hold up the plan
 log = logging.getLogger(__name__)
 
 
@@ -39,15 +43,17 @@ def _key() -> str | None:
     return key.get_secret_value().strip() if key else None
 
 
-async def _cached(place_id: str) -> list[str] | None:
+async def cached(place_id: str) -> list[str] | None:
+    """The cached video ids, or None when there is no fresh cache entry (then a search is needed)."""
     try:
         doc = await firestore.cache_get("videos", place_id)
     except Exception as e:  # the cache only saves quota; skip it if Firestore fails
         log.warning(json.dumps({"event": "videos_cache_error", "op": "get", "error": type(e).__name__}))
         return None
-    if doc and doc.get("fetchedAt") and firestore.now() - doc["fetchedAt"] < CACHE_FOR:
-        return doc.get("videoIds", [])
-    return None
+    if not doc or not doc.get("fetchedAt"):
+        return None
+    ids = doc.get("videoIds", [])
+    return ids if firestore.now() - doc["fetchedAt"] < (CACHE_FOR if ids else CACHE_EMPTY_FOR) else None
 
 
 async def _save(place_id: str, query: str, ids: list[str]) -> None:
@@ -57,12 +63,9 @@ async def _save(place_id: str, query: str, ids: list[str]) -> None:
         log.warning(json.dumps({"event": "videos_cache_error", "op": "set", "error": type(e).__name__}))
 
 
-def rank(items: list[dict], name: str) -> list[str]:
-    """Video ids, the ones whose title contains the spot name first (stable order otherwise)."""
-    name = name.lower()
-    with_name = [i["id"]["videoId"] for i in items if name in i.get("snippet", {}).get("title", "").lower()]
-    others = [i["id"]["videoId"] for i in items if i["id"]["videoId"] not in with_name]
-    return with_name + others
+def relevant(items: list[dict], *names: str) -> list[str]:
+    """Ids of the videos whose title names the spot (a distinctive part of one of its names), in search order."""
+    return [i["id"]["videoId"] for i in items if mentions(i.get("snippet", {}).get("title", ""), *names)]
 
 
 async def _get(url: str, params: dict) -> httpx.Response:
@@ -109,14 +112,15 @@ async def _made_for_kids(ids: list[str], key: str) -> set[str]:
     return {i["id"] for i in resp.json().get("items", []) if i.get("status", {}).get("madeForKids")}
 
 
-async def shorts_for(place_id: str, name_local: str, region: str) -> list[str]:
-    """Return up to 3 Shorts video ids for a stop (titles with the spot name first). Empty list is OK."""
+async def shorts_for(place_id: str, name_local: str, region: str, name: str = "") -> list[str]:
+    """Return up to 3 Shorts video ids for a stop whose titles name it (`name_local`, or `name` in the trip language).
+    Empty list is OK."""
     global _quota_out_until
     if not place_id or not name_local:
         return []
-    cached = await _cached(place_id)
-    if cached is not None:
-        return cached
+    hit = await cached(place_id)
+    if hit is not None:
+        return hit
     if _quota_out_until and firestore.now() < _quota_out_until:
         return []  # quota used up today: don't spend time on calls YouTube will refuse
     key = _key()
@@ -126,7 +130,7 @@ async def shorts_for(place_id: str, name_local: str, region: str) -> list[str]:
 
     query = f"{name_local} shorts"
     try:
-        ids = rank(await _search(query, region or None, key), name_local)
+        ids = relevant(await _search(query, region or None, key), name_local, name)
         if ids:
             kids = await _made_for_kids(ids, key)
             ids = [i for i in ids if i not in kids]
@@ -137,8 +141,9 @@ async def shorts_for(place_id: str, name_local: str, region: str) -> list[str]:
             log.warning(json.dumps({"event": "youtube_quota_out", "until": _quota_out_until.isoformat()}))
         else:
             log.warning(json.dumps({"event": "youtube_error", "status": status, "error": type(e).__name__}))
+            # includes 429 rateLimitExceeded: a burst limit, so only this stop goes without videos
         return []
 
     ids = ids[:MAX_VIDEOS]
-    await _save(place_id, query, ids)  # also cache "no videos", so we don't spend quota on it again
+    await _save(place_id, query, ids)  # "no videos" is cached too, but only for a day (CACHE_EMPTY_FOR)
     return ids

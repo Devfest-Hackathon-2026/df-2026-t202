@@ -3,10 +3,12 @@
 1. claim the trip (status "planning")         2. planner.draft
 3. verify stops with Places; missing ones get one Planner replacement round, then are dropped with a note
 4. progress "routes": real legs from Routes    5. re-time each day
-6. warnings: long driving, closed on arrival   7. >= 3 warnings -> planner.fix once, redo 3-6
-8. progress "videos": YouTube Shorts         9. save_plan -> planId
-On any error: status "error", then re-raise (the router turns it into an HTTP error).
-Plan quality comes before speed (D44); every API call inside a step runs in parallel.
+6. warnings: long driving, closed on arrival, past midnight
+7. >= 3 warnings or any "closed" -> planner.fix once (with the opening hours), redo 3-6
+8. progress "videos": YouTube Shorts         9. cost check, save_plan -> planId
+On any error (or a cancelled request): status "error", then re-raise (the router turns it into an HTTP error).
+Plan quality comes before speed (D44); every API call inside a step runs in parallel. Repair rounds only start in the
+first FIX_BEFORE_S seconds, so draft + repair + APIs stay under the Cloud Run request timeout (300 s).
 """
 
 from __future__ import annotations
@@ -30,12 +32,24 @@ from app.services import places, routes, youtube
 log = logging.getLogger(__name__)
 
 MAX_DRIVE_MINUTES = 300  # per day, then warn (spec T4 step 6)
-FIX_AT_WARNINGS = 3  # this many warnings -> one repair round (step 7)
+FIX_AT_WARNINGS = 3  # this many warnings (or one "closed") -> one repair round (step 7)
+FIX_BEFORE_S = 140  # no repair round starts later than this: a fix can take 2 x 45 s, then routes and videos
 WALK_UNDER_KM = 1.0  # short hops are walks
+TRANSIT_WALK_KM = 2.0  # no transit route (Routes has no transit data for Japan): walk if it is this close
+DAY_END = 23 * 60 + 55  # re-timed stops stay on the same day
 MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D50)
 STALE_PLANNING = timedelta(minutes=10)  # a "planning" status older than this is a crashed run, not a running one
 YOUTUBE_PARALLEL = 4  # more at once and YouTube answers 429 "too many requests" (D57)
 NO_VIDEO_KINDS = {"start", "end", "transport"}  # stations, ports, rental cars: weak videos (D52)
+NO_VIDEO_TYPES = {  # Places types with weak Shorts: hotels, stations, rental cars
+    "lodging", "hotel", "japanese_inn", "hostel", "resort_hotel", "motel", "bed_and_breakfast", "train_station",
+    "transit_station", "subway_station", "bus_station", "light_rail_station", "airport", "ferry_terminal",
+    "car_rental", "parking",
+}  # fmt: skip
+LODGING_TYPES = {"lodging", "hotel", "japanese_inn", "hostel", "resort_hotel", "motel", "bed_and_breakfast"}
+NOT_LODGING_KINDS = {"food", "sight", "view", "night_view", "shop"}  # a hotel can't be these stops
+VIDEO_PRIORITY = {"sight": 0, "view": 0, "night_view": 0, "onsen": 0, "activity": 1, "food": 1}  # others: 2
+MAX_VIDEO_SEARCHES = 10  # new YouTube searches per plan (quota: ~100 a day); cached stops don't count
 AREA_TYPES = {"country", "administrative_area_level_1", "administrative_area_level_2", "locality", "colloquial_area"}
 PLACE_TYPES = {"point_of_interest", "establishment", "tourist_attraction"}  # a real place, even inside a town
 TRANSPORT_MODE = {"car": "DRIVE", "train": "TRANSIT", "shinkansen": "TRANSIT", "bus": "TRANSIT"}
@@ -45,16 +59,25 @@ TEXT = {
     "en": {
         "drive": "About {h} h {m} min of driving today. Consider fewer stops.",
         "closed": "May be closed when you arrive ({time}). Check the opening hours.",
+        "late": "This day runs past midnight. Consider fewer stops.",
         "dropped": "{name}: couldn't be found on Google Maps, so it was removed. Please check.",
+        "budget": "The estimate ({max:,} {currency}) may exceed your budget ({budget:,} {currency}). Please check.",
         "missing": 'Day {day}: "{name}" couldn\'t be found on Google Maps in {country}. '
         "Replace it with a real place that fits the same time and purpose.",
+        "lodging": 'Day {day}: "{name}" is a hotel or ryokan, not a place to eat or visit. '
+        "Replace it with a real restaurant or sight that fits the same time and purpose.",
     },
     "ja": {
         "drive": "この日の運転は約{h}時間{m}分です。立ち寄り先を減らすことも検討してください。",
         "closed": "到着時刻（{time}）に営業していない可能性があります。営業時間を確認してください。",
+        "late": "この日の予定が深夜0時を過ぎます。立ち寄り先を減らすことも検討してください。",
         "dropped": "{name}：Googleマップで見つからなかったため、プランから外しました。確認してください。",
+        "budget": "見積もり（最大{max:,} {currency}）がご予算（{budget:,} {currency}）を"
+        "超える可能性があります。確認してください。",
         "missing": "{day}日目：「{name}」は{country}のGoogleマップで見つかりませんでした。"
         "同じ時間帯と目的に合う実在の場所に置き換えてください。",
+        "lodging": "{day}日目：「{name}」はホテルか旅館で、食事や観光の立ち寄り先ではありません。"
+        "同じ時間帯と目的に合う実在の飲食店や観光地に置き換えてください。",
     },
 }
 
@@ -70,6 +93,8 @@ class Run:
     places: dict[str, dict | None] = field(default_factory=dict)  # query -> Places result
     legs: dict[tuple, dict | None] = field(default_factory=dict)  # (a, b, mode) -> Routes result
     hours: dict[str, dict | None] = field(default_factory=dict)  # stop id -> regularOpeningHours
+    types: dict[str, set[str]] = field(default_factory=dict)  # stop id -> Places primaryType (or all types)
+    lodging: set[str] = field(default_factory=set)  # stop ids rejected because Places says it is a hotel
 
     def text(self, key: str, **kw) -> str:
         return TEXT.get(self.lang, TEXT["en"])[key].format(**kw)
@@ -99,6 +124,7 @@ async def claim(trip_id: str) -> None:
 
 
 async def _find(stop: Stop, run: Run) -> dict | None:
+    run.lodging.discard(stop.id)
     query = stop.nameLocal or stop.name  # the local name is the most precise search
     guess = (stop.lat, stop.lng) if stop.lat is not None and stop.lng is not None else None
     if query not in run.places:
@@ -113,7 +139,20 @@ async def _find(stop: Stop, run: Run) -> dict | None:
     types = set(found.get("types") or [])
     if types & AREA_TYPES and not types & PLACE_TYPES:
         return None  # a whole city or region, not a place to visit (D56)
+    if stop.kind in NOT_LODGING_KINDS and _main_types(found) & LODGING_TYPES:
+        run.lodging.add(stop.id)  # a ryokan as lunch: ask the Planner for a real restaurant
+        return None
     return found
+
+
+def _main_types(found: dict) -> set[str]:
+    """What the place mainly is: Google's primary type, else all its types."""
+    return {found["primaryType"]} if found.get("primaryType") else set(found.get("types") or [])
+
+
+def _better_name(ours: str, google: str) -> bool:
+    """Use Google's name unless it looks like SEO padding: much longer, or not sharing a distinctive word with ours."""
+    return len(google) <= len(ours) * 1.5 + 5 and (places.mentions(google, ours) or places.mentions(ours, google))
 
 
 async def _verify_stop(stop: Stop, run: Run) -> bool:
@@ -121,11 +160,19 @@ async def _verify_stop(stop: Stop, run: Run) -> bool:
     if not found:
         return False
     stop.placeId, stop.lat, stop.lng = found["placeId"], found["lat"], found["lng"]
-    # Official name in the trip language, except: keep Gemini's English name over a local-script one, and keep the
-    # start/end names (Google may call the pickup branch "... Car Return") (D55).
-    if found["name"] and stop.kind not in ("start", "end") and (run.lang != "en" or found["name"].isascii()):
-        stop.name = found["name"]
+    # Official name in the trip language, except: keep Gemini's English name over a local-script one, keep the
+    # start/end names (Google may call the pickup branch "... Car Return") (D55), and keep Gemini's name over an
+    # SEO-padded one ("Sapporo's Secret Onsen Sanctuary Marukoma Onsen Ryokan").
+    google = found["name"]
+    if (
+        google
+        and stop.kind not in ("start", "end")
+        and (run.lang != "en" or google.isascii())
+        and _better_name(stop.name, google)
+    ):
+        stop.name = google
     run.hours[stop.id] = found.get("openingHours")
+    run.types[stop.id] = _main_types(found)
     if not stop.nameLocal:
         stop.nameLocal = await places.local_name(found["placeId"], found.get("countryCode") or run.country or "")
     for name in (stop.name, stop.nameLocal):  # a repair round may search by either name: don't pay twice
@@ -168,15 +215,23 @@ async def _leg(a: Stop, b: Stop, run: Run) -> None:
     if leg.mode in ("FLIGHT", "FERRY"):
         a.leg = leg.model_copy(update={"estimate": True, "polyline": None})
         return
-    mode = "WALK" if km(a, b) < WALK_UNDER_KM else leg.mode
-    key = (a.lat, a.lng, b.lat, b.lng, mode)
-    if key not in run.legs:
-        run.legs[key] = await routes.leg((a.lat, a.lng), (b.lat, b.lng), mode, run.lang)
-    real = run.legs[key]
+    distance = km(a, b)
+    mode = "WALK" if distance < WALK_UNDER_KM else leg.mode
+    real = await _route(a, b, mode, run)
+    if not real and mode == "TRANSIT" and distance <= TRANSIT_WALK_KM:
+        mode = "WALK"  # Routes has no transit data for Japan; a real walk beats a guessed train ride
+        real = await _route(a, b, mode, run)
     if real:
         a.leg = Leg(mode=mode, minutes=real["minutes"], polyline=real["polyline"], estimate=False)
     else:
         a.leg = Leg(mode=mode, minutes=leg.minutes, polyline=None, estimate=True)  # keep the Planner's guess (D38)
+
+
+async def _route(a: Stop, b: Stop, mode: str, run: Run) -> dict | None:
+    key = (a.lat, a.lng, b.lat, b.lng, mode)
+    if key not in run.legs:
+        run.legs[key] = await routes.leg((a.lat, a.lng), (b.lat, b.lng), mode, run.lang)
+    return run.legs[key]
 
 
 async def add_legs(plan: Plan, run: Run) -> None:
@@ -196,22 +251,22 @@ def _minutes(hhmm: str) -> int:
 
 
 def _hhmm(minutes: int) -> str:
-    minutes = min(minutes, 23 * 60 + 55)  # stay on the same day
+    minutes = min(minutes, DAY_END)  # stay on the same day; add_warnings flags a day that ends at DAY_END
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
 def retime(plan: Plan) -> None:
     """Keep each day's first time; next = previous + stay + travel, rounded up to 5 minutes.
 
-    A night view never moves earlier than the Planner's time (Gemini schedules it after sunset): when we'd arrive
-    early, the stop before gets the extra time (D54).
+    A night view or a meal never moves earlier than the Planner's time (Gemini schedules night views after sunset and
+    meals at meal times): when we'd arrive early, the stop before gets the extra time (D54).
     """
     for day in plan.days:
         t = _minutes(day.stops[0].time)
         for a, b in zip(day.stops, day.stops[1:], strict=False):
             t = math.ceil((t + a.stayMinutes + (a.leg.minutes if a.leg else 0)) / 5) * 5
             planned = _minutes(b.time)
-            if b.kind == "night_view" and planned > t:
+            if b.kind in ("night_view", "food") and planned > t:
                 a.stayMinutes += planned - t
                 t = planned
             b.time = _hhmm(t)
@@ -239,9 +294,16 @@ def is_open(hours: dict | None, day: date, hhmm: str) -> bool | None:
     return False
 
 
-def add_warnings(plan: Plan, run: Run) -> list[str]:
-    """Set stop.warn and return the warnings (with day and place, for the Planner's repair round)."""
-    found = []
+def _hours_on(hours: dict | None, day: date) -> str:
+    """Google's opening-hours line for that weekday ("Monday: 9:00 AM – 5:00 PM"), or "" when unknown."""
+    lines = (hours or {}).get("weekdayDescriptions") or []
+    return f" Opening hours: {lines[day.weekday()]}" if len(lines) == 7 else ""  # Google lists Monday first
+
+
+def add_warnings(plan: Plan, run: Run) -> tuple[list[str], int]:
+    """Set stop.warn and return the warnings (with day, place and opening hours, for the Planner's repair round)
+    and how many of them are "closed on arrival"."""
+    found, closed = [], 0
     for day in plan.days:
         for stop in day.stops:
             stop.warn = None
@@ -249,37 +311,73 @@ def add_warnings(plan: Plan, run: Run) -> list[str]:
         if drive > MAX_DRIVE_MINUTES:
             day.stops[0].warn = run.text("drive", h=drive // 60, m=drive % 60)
             found.append(f"Day {day.day}: {day.stops[0].warn}")
+        late = next((s for s in day.stops[1:] if _minutes(s.time) >= DAY_END), None)
+        if late:
+            late.warn = run.text("late")
+            found.append(f"Day {day.day}, {late.name}: {late.warn}")
         if not day.date:
             continue
+        on = date.fromisoformat(day.date)
         for stop in day.stops:
-            if is_open(run.hours.get(stop.id), date.fromisoformat(day.date), stop.time) is False:
+            hours = run.hours.get(stop.id)
+            if is_open(hours, on, stop.time) is False:
                 stop.warn = run.text("closed", time=stop.time)
-                found.append(f"Day {day.day}, {stop.name}: {stop.warn}")
-    return found
+                found.append(f"Day {day.day}, {stop.name}: {stop.warn}{_hours_on(hours, on)}")
+                closed += 1
+    return found, closed
 
 
 # ---------- 8. Videos ----------
 
 
-async def add_videos(plan: Plan, run: Run) -> None:
-    """Up to 3 Shorts per stop with a placeId, except start/end/transport stops. Cached for 7 days."""
-    stops = [s for day in plan.days for s in day.stops if s.placeId and s.kind not in NO_VIDEO_KINDS]
+async def add_videos(plan: Plan, run: Run, max_searches: int = MAX_VIDEO_SEARCHES) -> None:
+    """Up to 3 Shorts per stop with a placeId, except start/end/transport stops and hotels or stations.
+
+    Cached stops always get their videos; at most `max_searches` new searches, sights, views and onsen first.
+    """
+    stops = [
+        s
+        for day in plan.days
+        for s in day.stops
+        if s.placeId and s.kind not in NO_VIDEO_KINDS and not run.types.get(s.id, set()) & NO_VIDEO_TYPES
+    ]
+    hits = await asyncio.gather(*(youtube.cached(s.placeId) for s in stops))
+    for stop, ids in zip(stops, hits, strict=True):
+        stop.videoIds = ids or []
+    todo = sorted(
+        (s for s, ids in zip(stops, hits, strict=True) if ids is None), key=lambda s: VIDEO_PRIORITY.get(s.kind, 2)
+    )
     limit = asyncio.Semaphore(YOUTUBE_PARALLEL)
 
-    async def one(stop: Stop) -> list[str]:
+    async def one(stop: Stop) -> None:
         async with limit:
-            return await youtube.shorts_for(stop.placeId, stop.nameLocal or stop.name, run.country or "")
+            stop.videoIds = await youtube.shorts_for(
+                stop.placeId, stop.nameLocal or stop.name, run.country or "", name=stop.name
+            )
 
-    found = await asyncio.gather(*(one(s) for s in stops))
-    for stop, ids in zip(stops, found, strict=True):
-        stop.videoIds = ids
+    await asyncio.gather(*(one(s) for s in todo[:max_searches]))
+
+
+# ---------- 9. Cost ----------
+
+
+def check_cost(plan: Plan, slots: Slots, run: Run) -> None:
+    """Add a check when the estimate may exceed the budget (same basis and currency) and the Planner didn't say so."""
+    budget, cost = slots.budget, plan.cost
+    if not budget or not budget.amount or not cost:
+        return
+    if cost.basis != budget.basis or plan.currency != budget.currency or cost.max <= budget.amount:
+        return
+    if any("budget" in c.lower() or "予算" in c for c in plan.checks):
+        return
+    plan.checks.append(run.text("budget", max=cost.max, budget=budget.amount, currency=budget.currency))
 
 
 # ---------- The whole run ----------
 
 
-async def _check(plan: Plan, run: Run, trip_id: str) -> list[str]:
-    """Steps 4-6. Returns the warnings."""
+async def _check(plan: Plan, run: Run, trip_id: str) -> tuple[list[str], int]:
+    """Steps 4-6. Returns the warnings and how many are "closed on arrival"."""
     await fs.update_trip(trip_id, {"progress": "routes"})
     await add_legs(plan, run)
     retime(plan)
@@ -306,15 +404,16 @@ async def run(trip_id: str) -> str:
         stage["draft"] = time.perf_counter() - started
 
         missing = await verify(plan, r)
-        if missing:  # one replacement round, then drop what is still missing (D47)
-            asks = [r.text("missing", day=d, name=s.name, country=r.country or "the destination") for d, s in missing]
+        if missing and time.perf_counter() - started < FIX_BEFORE_S:  # one replacement round, then drop (D47)
+            asks = [_ask(d, s, r) for d, s in missing]
             plan = await planner.fix(plan, asks, lang)
-            drop(plan, await verify(plan, r), r)
+            missing = await verify(plan, r)
+        drop(plan, missing, r)
         stage["spots"] = time.perf_counter() - started
 
-        warnings = await _check(plan, r, trip_id)
-        if len(warnings) >= FIX_AT_WARNINGS:  # one repair round (spec step 7)
-            plan = await planner.fix(plan, warnings, lang)
+        warnings, closed = await _check(plan, r, trip_id)
+        if (len(warnings) >= FIX_AT_WARNINGS or closed) and time.perf_counter() - started < FIX_BEFORE_S:
+            plan = await planner.fix(plan, warnings, lang)  # one repair round (spec step 7)
             drop(plan, await verify(plan, r), r)
             await _check(plan, r, trip_id)
         stage["routes"] = time.perf_counter() - started
@@ -323,12 +422,22 @@ async def run(trip_id: str) -> str:
         await add_videos(plan, r)
         stage["videos"] = time.perf_counter() - started
 
+        check_cost(plan, slots, r)
         plan_id = await fs.save_plan(trip_id, plan)
         log.info(
             json.dumps({"msg": "plan_done", "tripId": trip_id, "seconds": {k: round(v, 1) for k, v in stage.items()}})
         )
         return plan_id
-    except Exception as e:
+    except (Exception, asyncio.CancelledError) as e:  # a cancelled request must not leave the trip "planning"
         log.warning(json.dumps({"msg": "plan_failed", "tripId": trip_id, "err": type(e).__name__}))
-        await fs.update_trip(trip_id, {"status": "error", "progress": None})
+        try:
+            await fs.update_trip(trip_id, {"status": "error", "progress": None})
+        except Exception:  # keep the original error
+            log.warning(json.dumps({"msg": "plan_status_reset_failed", "tripId": trip_id}))
         raise
+
+
+def _ask(day: int, stop: Stop, run: Run) -> str:
+    if stop.id in run.lodging:
+        return run.text("lodging", day=day, name=stop.name)
+    return run.text("missing", day=day, name=stop.name, country=run.country or "the destination")

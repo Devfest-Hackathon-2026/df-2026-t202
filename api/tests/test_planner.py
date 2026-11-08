@@ -75,3 +75,24 @@ def test_fix_sends_plan_and_warnings(monkeypatch):
 
     assert calls[0]["user"]["warnings"] == ["Day 2: 6 h of driving"]
     assert calls[0]["user"]["plan"]["title"] == plan.title
+    assert calls[0]["thinking"] == "LOW" and calls[0]["timeout"] == planner.FIX_TIMEOUT_SECONDS  # repairs are small
+
+
+def test_worst_case_gemini_time_fits_cloud_run():
+    from app import pipeline
+
+    # draft (2 attempts) alone, or a repair started just before the cut-off; Cloud Run allows 300 s
+    assert 2 * planner.TIMEOUT_SECONDS <= 270
+    assert pipeline.FIX_BEFORE_S + 2 * planner.FIX_TIMEOUT_SECONDS <= 240
+
+
+def test_costs_are_always_ranges(monkeypatch):
+    plan = Plan.model_validate_json(PLAN_JSON)
+    plan.cost.min, plan.cost.max = 50000, 30000
+    plan.cost.items[0].min = plan.cost.items[0].max = 3000
+    fake_gemini(monkeypatch, plan)
+
+    out = asyncio.run(planner.draft(SLOTS, [], "en"))
+
+    assert (out.cost.min, out.cost.max) == (30000, 50000)  # swapped
+    assert (out.cost.items[0].min, out.cost.items[0].max) == (2700, 3300)  # one price -> about +-10%
