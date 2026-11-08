@@ -187,9 +187,38 @@ Each decision is added here at the time it is made.
   exist. Result: the second run named real places (Shippoku Hamakatsu, Katsuretsutei, Kokutei ramen).
 - **Decided by:** Person B
 
+
+### 21. Missing places: one Planner replacement round, then drop with a note
+- **Date / task:** 2026-11-08, T4 (`pipeline.py`)
+- **Options considered:** **Ask the Planner to replace only the missing stops** ✅ (the spec) · Drop them at once.
+- **Why:** Better plans. It only costs time and money when something is missing; a stop that still isn't found is
+  removed and listed in `checks`.
+- **Decided by:** Person B
+
+### 22. Reject Places matches in another country
+- **Options considered:** **Same country as the destination** ✅ · Distance from the destination · No check.
+- **Why:** Simple, works worldwide, catches the worst mix-ups. Skipped when the destination has no single country.
+- **Decided by:** Person B
+
+### 23. /plan refuses double runs and unfinished chats
+- **Options considered:** **409 when a run is in progress or the chat isn't at "ready"** ✅ · Only block double runs ·
+  No guards.
+- **Why:** Each run costs Gemini and Maps money and counts toward the daily limit; a double tap would pay twice and save
+  two plans. A "planning" status older than 10 minutes counts as a crashed run, so a trip can't get stuck.
+- **Decided by:** Person B
+
+### 24. Search Places near the Planner's rough location, reject matches over 30 km away
+- **Found in the first real pipeline run:** Gemini named a restaurant "かじ屋" in Saga; Places matched a different
+  "かじ屋" near Kumamoto, 100 km away (same country, so decision 22 didn't catch it). The detour added 3+ hours.
+- **Options considered:** **Planner gives rough lat/lng; search near it; > 30 km away = wrong match** ✅ · Search
+  near the previous stop (sequential, slower, errors spread) · Leave it.
+- **Why:** Gemini knows roughly where places are, so this costs no extra calls and works worldwide. Places still sets
+  the exact coordinates. Re-run: every stop in the right town, 31 s, no repair round needed.
+- **Decided by:** Person B
+
 ---
 
-Team log: decisions 3–6, 9–10 and 11–15, 16–20 are also in `docs/decisions.md` as D35–D40, D41–D43 and D44–D46. Decisions 7 and 8 are covered there by
+Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46 and D47–D50. Decisions 7 and 8 are covered there by
 Person A's D21 and D34.
 
 ---

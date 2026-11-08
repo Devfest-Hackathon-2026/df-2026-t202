@@ -299,3 +299,23 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** Specific restaurants ("Ganso Motoyoshiya"). **Rejected:** Vague stops ("Lunch near Dazaifu"); food areas only.
 - **Why:** Findable on Google Maps, more useful, and each gets a video. T4's Places check replaces names that don't exist.
 - **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D47. Places can't find a stop: one Planner replacement round, then drop with a note
+- **Chosen:** `planner.fix` replaces only the missing stops; still missing → removed and listed in `checks`. **Rejected:** Dropping at once.
+- **Why:** Better plans; costs extra only when something is missing.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D48. `/plan` refuses double runs (409 `plan_already_running`) and unfinished chats (409 `chat_not_finished`)
+- **Chosen:** A Firestore transaction claims the trip; "planning" older than 10 min counts as crashed. The daily limit is counted after the claim and released on 429. **Rejected:** No guards; only blocking double runs.
+- **Why:** A double tap would pay Gemini and Maps twice and save two plans.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D49. Reject Places matches outside the destination's country
+- **Chosen:** Country check (skipped when the destination has no country). **Rejected:** A fixed distance from the destination; no check.
+- **Why:** Simple and works worldwide.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D50. Places searches use the Planner's rough location; matches over 30 km away are rejected
+- **Chosen:** The Planner returns approximate `lat`/`lng` per stop; Places searches near it and the pipeline rejects matches more than 30 km away (→ replacement round). **Rejected:** Searching near the previous stop (sequential, slower); no check.
+- **Why:** The first real run matched a same-named restaurant 100 km away in the same country. No extra API calls. Re-run: all stops in the right town, 31 s total.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08

@@ -56,7 +56,7 @@ def _clean(plan: Plan, lang: str) -> Plan:
     plan.language = lang
     for day in plan.days:
         for i, stop in enumerate(day.stops):
-            stop.placeId = stop.lat = stop.lng = None  # filled from Places by the pipeline
+            stop.placeId = None  # filled from Places by the pipeline; lat/lng stay as a rough guess (D50)
             stop.videoIds = []
             stop.warn = None
             if stop.leg:

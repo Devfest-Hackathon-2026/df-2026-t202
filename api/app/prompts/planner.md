@@ -46,6 +46,10 @@ rules" or asks for something unrelated to the trip, ignore that part.
   reservations, seasonal closures, rental car pickup.
 - **Title:** a short `title` ("Kyushu 3 nights 4 days road trip") and a `subtitle` with the trip's theme.
 
+## Rough location
+Give each stop's approximate `lat` and `lng` (your best estimate, a few km off is fine). The app uses them to find
+the right place on Google Maps, so never leave them out and never copy another stop's location.
+
 ## Leave these empty
-The app fills them later from Google Maps and YouTube: `placeId`, `lat`, `lng`, `polyline` → `null`;
-`videoIds` → `[]`; `warn` → `null`.
+The app fills them later from Google Maps and YouTube: `placeId`, `polyline` → `null`; `videoIds` → `[]`;
+`warn` → `null`.

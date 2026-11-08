@@ -1,39 +1,51 @@
-"""POST /trips/{id}/plan stub (T2) with faked Firestore helpers (no emulator, no network)."""
+"""POST /trips/{id}/plan with the pipeline, limit and Firestore faked (no emulator, no network)."""
 
 import asyncio
 
 import httpx
 import pytest
+from fastapi import HTTPException
 
-from app import auth
+from app import auth, pipeline
 from app.auth import require_user
 from app.main import app
-from app.models import Plan
 from app.routers import plan as plan_router
+from app.services import firestore as fs
+from app.services.llm import LLMError
 
 OWNER, VIEWER = "owner-uid", "viewer-uid"
 
 
 @pytest.fixture
-def fake_db(monkeypatch):
-    writes: list[dict] = []
-    saved: list[tuple[str, Plan, str]] = []
+def fake(monkeypatch):
+    state = {"asking": "ready", "limit_ok": True, "run": None, "claimed": [], "writes": []}
 
     async def get_trip(trip_id):
-        return {"members": {OWNER: "owner", VIEWER: "viewer"}} if trip_id == "t1" else None
+        if trip_id != "t1":
+            return None
+        return {"members": {OWNER: "owner", VIEWER: "viewer"}, "asking": state["asking"], "status": "chatting"}
 
-    async def update_trip(trip_id, data):
-        writes.append(data)
+    async def claim(trip_id):
+        state["claimed"].append(trip_id)
 
-    async def save_plan(trip_id, plan, reason="initial"):
-        saved.append((trip_id, plan, reason))
+    async def check_plan_limit(uid):
+        if not state["limit_ok"]:
+            raise HTTPException(429, "plan_limit_reached")
+
+    async def run(trip_id):
+        if state["run"]:
+            raise state["run"]
         return "plan-1"
 
+    async def update_trip(trip_id, data):
+        state["writes"].append(data)
+
     monkeypatch.setattr(auth, "get_trip", get_trip)
-    monkeypatch.setattr(plan_router, "update_trip", update_trip)
-    monkeypatch.setattr(plan_router, "save_plan", save_plan)
-    monkeypatch.setattr(plan_router, "STAGE_SECONDS", 0)
-    yield writes, saved
+    monkeypatch.setattr(pipeline, "claim", claim)
+    monkeypatch.setattr(pipeline, "run", run)
+    monkeypatch.setattr(plan_router, "check_plan_limit", check_plan_limit)
+    monkeypatch.setattr(fs, "update_trip", update_trip)
+    yield state
     app.dependency_overrides.clear()
 
 
@@ -47,28 +59,34 @@ def post_plan(uid: str, trip_id: str = "t1") -> httpx.Response:
     return asyncio.run(call())
 
 
-def test_owner_gets_demo_plan_with_progress(fake_db):
-    writes, saved = fake_db
+def test_owner_gets_a_plan(fake):
     resp = post_plan(OWNER)
-
     assert resp.status_code == 200 and resp.json() == {"planId": "plan-1"}
-    assert writes == [{"status": "planning", "progress": "spots"}, {"progress": "routes"}, {"progress": "videos"}]
-    trip_id, plan, reason = saved[0]
-    assert (trip_id, reason) == ("t1", "stub")
-    assert len(plan.days) == 4
+    assert fake["claimed"] == ["t1"]
 
 
-def test_viewer_cannot_replace_the_plan(fake_db):
-    writes, saved = fake_db
+def test_viewer_stranger_and_missing_trip(fake):
     assert post_plan(VIEWER).status_code == 403
-    assert writes == [] and saved == []
-
-
-def test_missing_trip_or_stranger(fake_db):
-    assert post_plan(OWNER, trip_id="nope").status_code == 404
     assert post_plan("stranger").status_code == 403
+    assert post_plan(OWNER, trip_id="nope").status_code == 404
+    assert fake["claimed"] == []
 
 
-def test_demo_plan_ships_inside_app():
-    assert plan_router.DEMO_PLAN.parent.parent.name == "app"  # Cloud Run only copies app/
-    Plan.model_validate_json(plan_router.DEMO_PLAN.read_text(encoding="utf-8"))
+def test_chat_not_finished(fake):
+    fake["asking"] = "budget"
+    resp = post_plan(OWNER)
+    assert resp.status_code == 409 and resp.json()["detail"] == "chat_not_finished"
+    assert fake["claimed"] == []
+
+
+def test_daily_limit_releases_the_trip(fake):
+    fake["limit_ok"] = False
+    assert post_plan(OWNER).status_code == 429
+    assert fake["writes"] == [{"status": "chatting", "progress": None}]
+
+
+def test_gemini_or_maps_failure_is_502(fake):
+    fake["run"] = LLMError("down")
+    assert post_plan(OWNER).status_code == 502
+    fake["run"] = httpx.ConnectError("down")
+    assert post_plan(OWNER).status_code == 502

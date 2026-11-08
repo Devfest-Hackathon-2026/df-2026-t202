@@ -1,36 +1,36 @@
-"""Plan endpoints (Person B). BACKEND_PERSON_B.md T2: a stub until the real pipeline (T4) replaces it.
+"""Plan endpoints (Person B). BACKEND_PERSON_B.md T4, PLAN.md 9.1 / 9.3.
 
-The stub saves the hand-written Kyushu plan (app/fixtures/demo_plan.json) so the front end can build the trip page
-and the progress screen now. It calls no paid API (Gemini, Places, Routes, YouTube). It must never appear in the demo
-video (hackathon rule: no fake demo). T4 replaces the body with pipeline.run(trip_id) and adds check_plan_limit.
+POST /trips/{trip_id}/plan runs the plan pipeline and returns {"planId"}. The request stays open until the plan
+is saved (it can take more than 30 s, D44); the front end shows trips.progress meanwhile.
 """
 
-import asyncio
-from pathlib import Path
+import httpx
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter
-
+from app import pipeline
 from app.auth import User, require_owner
-from app.models import Plan
-from app.services.firestore import save_plan, update_trip
+from app.services import firestore as fs
+from app.services.limits import check_plan_limit
+from app.services.llm import LLMError
 
 router = APIRouter()
-
-DEMO_PLAN = Path(__file__).resolve().parents[1] / "fixtures" / "demo_plan.json"
-STAGE_SECONDS = 1.0  # pause per progress stage, so the front end can see each one
 
 
 @router.post("/trips/{trip_id}/plan")
 async def create_plan(trip_id: str, uid: User) -> dict[str, str]:
-    # Owner only: shared links are view only (PLAN.md F5), so a viewer can't replace the plan (decision 11).
-    await require_owner(trip_id, uid)
+    # Owner only: shared links are view only (D41).
+    trip = await require_owner(trip_id, uid)
+    if trip.get("asking") != "ready":
+        raise HTTPException(status.HTTP_409_CONFLICT, "chat_not_finished")  # D48
 
-    await update_trip(trip_id, {"status": "planning", "progress": "spots"})
-    for stage in ("routes", "videos"):
-        await asyncio.sleep(STAGE_SECONDS)
-        await update_trip(trip_id, {"progress": stage})
-    await asyncio.sleep(STAGE_SECONDS)
+    await pipeline.claim(trip_id)  # 409 plan_already_running on a double tap (D48)
+    try:
+        await check_plan_limit(uid)  # 429 after 20 plans a day
+    except HTTPException:
+        await fs.update_trip(trip_id, {"status": trip.get("status") or "chatting", "progress": None})
+        raise
 
-    plan = Plan.model_validate_json(DEMO_PLAN.read_text(encoding="utf-8"))
-    # save_plan sets status "ready" and progress "done". reason "stub" marks this version as sample data.
-    return {"planId": await save_plan(trip_id, plan, reason="stub")}
+    try:
+        return {"planId": await pipeline.run(trip_id)}
+    except (LLMError, httpx.HTTPError) as e:  # Gemini or Google Maps failed: an upstream error
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "plan_failed") from e
