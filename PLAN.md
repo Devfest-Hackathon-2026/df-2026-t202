@@ -385,7 +385,7 @@ Implementation notes:
 7. Set `progress = "videos"`. **Media** gets Shorts for each stop (9.4).
 8. Save `trips/{id}/plans/{planId}` (version 1). Set `currentPlanId`, `status = "ready"`, `progress = "done"`.
 
-Target: under 30 seconds. Run Places, Routes and YouTube calls in parallel (`asyncio.gather`).
+Plan quality comes before speed: the Planner alone takes about 30 s, so a plan may take longer (D44). Run Places, Routes and YouTube calls in parallel (`asyncio.gather`) to keep the rest fast; the front end shows progress meanwhile.
 
 ### 9.4 YouTube Shorts
 
@@ -521,7 +521,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 - [ ] BE: `places.py`, `routes.py`, Planner agent, `pipeline.py`, `POST /trips/{id}/plan`.
 - [ ] BE: Warnings and one fix round.
 - [ ] FE: Progress display during planning.
-- **Check:** the Kyushu demo input gives a realistic 4-day plan in under 30 seconds.
+- **Check:** the Kyushu demo input gives a realistic 4-day plan (quality first; may take more than 30 seconds, D44).
 
 ### Mon Nov 9 — evening: M3 Trip page + Shorts (by 24:00)
 - [ ] FE: S3 map with colored routes and numbered pins, timeline, cost, checks, badges.

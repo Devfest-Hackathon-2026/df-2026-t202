@@ -283,3 +283,19 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** Move it from `tests/fixtures/` into `app/`. **Rejected:** Copying `tests/` into the Cloud Run image; a local-only stub.
 - **Why:** The image only contains `app/`, so the stub needs the file there. No change to the deploy files.
 - **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D44. Planner: `gemini-3.5-flash`, default thinking, no Search grounding
+- **Chosen:** Flash with the model's default thinking level, one call with the strict `Plan` schema, 120 s timeout.
+- **Rejected:** A Pro model (slower, pricier). LOW or MINIMAL thinking (faster, weaker plans). Google Search grounding (Google requires showing its Search Suggestions with grounded results, which needs a `models.py` field and front-end work; billed per search query).
+- **Why:** Plan quality matters most; Places and Routes verify the draft anyway. Measured: draft in 27–31 s on the Kyushu demo, so the full pipeline may take longer than 30 s; PLAN.md 9.3 updated.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D45. No hotel stops: the hotel area goes in `stay`
+- **Chosen:** The prompt forbids hotel stops. **Rejected:** Gemini naming a specific hotel each night.
+- **Why:** The first test run invented hotels that Google Maps can't verify. Booking is out of scope.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D46. Meal stops are specific, well-known restaurants
+- **Chosen:** Specific restaurants ("Ganso Motoyoshiya"). **Rejected:** Vague stops ("Lunch near Dazaifu"); food areas only.
+- **Why:** Findable on Google Maps, more useful, and each gets a video. T4's Places check replaces names that don't exist.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08

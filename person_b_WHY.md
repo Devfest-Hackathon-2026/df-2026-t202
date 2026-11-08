@@ -152,9 +152,44 @@ Each decision is added here at the time it is made.
 - **Why:** It works on Cloud Run without touching Person A's files. Only path references change.
 - **Decided by:** Person B
 
+
+### 16. Planner model: `gemini-3.5-flash`
+- **Date / task:** 2026-11-08, T3 (`agents/planner.py`)
+- **Options considered:** **gemini-3.5-flash** ✅ (fast in Tokyo, cheap; Person A's D18) · a Pro model (slower,
+  pricier, may not be in Tokyo).
+- **Why:** PLAN.md says Flash first, Pro only if plan quality is low. The Kyushu test plans were good with Flash.
+- **Decided by:** Person B
+
+### 17. Plan quality over the 30-second target: the model's default thinking
+- **Options considered:** **Default thinking** ✅ · LOW · MINIMAL (Person A uses it for the Concierge).
+- **Why:** A good plan matters more than speed. Measured on the Kyushu demo: the draft takes **27–31 s** with default
+  thinking, so the whole pipeline will take longer than 30 s. The front end shows progress meanwhile.
+- **Decided by:** Person B. PLAN.md 9.3 and api/AGENTS.md updated to match.
+
+### 18. No Google Search grounding (for now)
+- **Options considered:** **No grounding** ✅ · Google Search grounding.
+- **Why:** Google requires apps to display its "Search Suggestions" with every grounded result, which needs a new
+  field in the shared `models.py` plus front-end work. It's also billed per search query. Places and Routes already
+  verify every stop and travel time in T4. We can add it later if plans name closed places.
+- **Decided by:** Person B (first chose grounding, then changed after reading Google's display rule)
+
+### 19. No hotel stops; the hotel area goes in `stay`
+- **Found in the first test run:** Gemini added made-up hotels ("Takachiho Ryokan") that Google Maps can't verify.
+- **Options considered:** **Area only** ✅ · Gemini names a real hotel each night.
+- **Why:** Only real, verifiable places on the timeline. Naming a hotel looks like a recommendation we can't stand
+  behind (price, availability), and booking is out of scope.
+- **Decided by:** Person B
+
+### 20. Meals are specific real restaurants
+- **Found in the first test run:** vague stops like "Lunch near Dazaifu" can't be found on Google Maps.
+- **Options considered:** **Specific well-known restaurants** ✅ · Food areas or markets.
+- **Why:** Most useful for travelers, and each meal gets a video. Places verification in T4 catches names that don't
+  exist. Result: the second run named real places (Shippoku Hamakatsu, Katsuretsutei, Kokutei ramen).
+- **Decided by:** Person B
+
 ---
 
-Team log: decisions 3–6, 9–10 and 11–15 are also in `docs/decisions.md` as D35–D40 and D41–D43. Decisions 7 and 8 are covered there by
+Team log: decisions 3–6, 9–10 and 11–15, 16–20 are also in `docs/decisions.md` as D35–D40, D41–D43 and D44–D46. Decisions 7 and 8 are covered there by
 Person A's D21 and D34.
 
 ---
