@@ -28,7 +28,7 @@ app/services/routes.py ⬜ (B) computeRoutes per leg
 app/services/youtube.py ⬜ (B) search.list + cache_videos (7 days)
 app/pipeline.py        ⬜ (B) plan pipeline (PLAN.md 9.3), writes progress to the trip doc
 app/prompts/*.md       concierge.md ✅ (A); planner prompt ⬜ (B)
-tests/                 ✅ (both) conftest.py, test_flow.py, test_api.py, test_models.py; fixtures/demo_slots.json, demo_plan.json
+tests/                 ✅ (both) conftest.py, test_flow.py, test_api.py, test_models.py; fixtures/demo_slots.json (demo_plan.json is in app/fixtures/, used by the plan stub)
 ```
 
 ## Helpers Person B imports (signatures from the code)
@@ -73,7 +73,7 @@ out = await llm.generate_json(  # cached Vertex AI client, JSON mode, validates,
 - Routes: one `computeRoutes` call per leg for TRANSIT (no waypoints). FLIGHT/FERRY or no route → keep the Planner minutes with `estimate: true`.
 - YouTube `search.list`: `type=video`, `videoDuration=short`, `maxResults=5`, `regionCode`=destination, query `"{nameLocal} shorts"`,
   **no `relevanceLanguage`**. Cache by placeId in `cache_videos` for 7 days. Pre-cache demo spots before recording.
-- Run calls in parallel with `asyncio.gather`. Target: the plan in under 30 s.
+- Run calls in parallel with `asyncio.gather`. Plan quality comes before speed (D44); the Planner alone takes about 30 s.
 - Keys are read from `get_settings()` (`SecretStr` → `.get_secret_value()`). Never log them.
 
 ## Firestore (Admin SDK bypasses the rules)

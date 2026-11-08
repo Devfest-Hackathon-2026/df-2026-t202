@@ -1,0 +1,92 @@
+"""Planner agent (Person B). BACKEND_PERSON_B.md T3, PLAN.md 9.2 / 9.3 step 2.
+
+slots + full chat -> draft Plan with Gemini (GEMINI_MODEL_PLANNER) and prompts/planner.md. No grounding tools and the
+model's default thinking level: plan quality over speed (person_b_WHY.md, decisions 16-18).
+The output is validated as `Plan` by llm.generate_json (one retry on invalid JSON, then llm.LLMError).
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import date
+from functools import cache
+from pathlib import Path
+
+from app.models import Plan, Slots
+from app.services import llm
+
+PROMPT_FILE = Path(__file__).parent.parent / "prompts" / "planner.md"
+LANGUAGE_NAMES = {"en": "English", "ja": "Japanese"}
+TIMEOUT_SECONDS = 120  # a full plan is long and we keep default thinking; per attempt
+MAX_CHAT_MESSAGES = 60  # the per-trip message limit
+
+FIX_TASK = (
+    "Revise the plan in `plan` so it solves the problems in `warnings`. Keep everything else as it is: "
+    "same days, same must-visit places, same stop ids where the stop stays. Return the whole plan."
+)
+
+
+@cache
+def _base_prompt() -> str:
+    return PROMPT_FILE.read_text(encoding="utf-8")
+
+
+def system_prompt(lang: str) -> str:
+    return f"{_base_prompt()}\nWrite all user-facing text in {LANGUAGE_NAMES.get(lang, 'English')}."
+
+
+def trip_days(slots: Slots) -> int:
+    """Number of days to plan: from the dates, else nights + 1, else 2 (a 1-night trip when nothing is decided)."""
+    if slots.dates:
+        span = (date.fromisoformat(slots.dates.end) - date.fromisoformat(slots.dates.start)).days
+        return max(1, span + 1)
+    if slots.nights is not None:
+        return max(1, slots.nights + 1)
+    return 2
+
+
+def _chat(messages: list[dict]) -> list[dict]:
+    """Only who said what. Card answers are already in the slots."""
+    lines = [{"role": m.get("role"), "text": m.get("text")} for m in messages if m.get("text")]
+    return lines[-MAX_CHAT_MESSAGES:]
+
+
+def _clean(plan: Plan, lang: str) -> Plan:
+    """Rules we enforce in code instead of trusting the model."""
+    plan.language = lang
+    for day in plan.days:
+        for i, stop in enumerate(day.stops):
+            stop.placeId = None  # filled from Places by the pipeline; lat/lng stay as a rough guess (D50)
+            stop.videoIds = []
+            stop.warn = None
+            if stop.leg:
+                stop.leg.polyline = None  # filled from Routes by the pipeline
+                stop.leg.estimate = stop.leg.estimate or stop.leg.mode in ("FLIGHT", "FERRY")
+            if i == len(day.stops) - 1:
+                stop.leg = None  # the last stop of a day goes nowhere
+    return plan
+
+
+async def draft(slots: Slots, messages: list[dict], lang: str) -> Plan:
+    """Return a draft Plan from the collected slots and the chat history. Raises llm.LLMError."""
+    user = json.dumps(
+        {
+            "slots": slots.model_dump(mode="json"),
+            "days": trip_days(slots),
+            "dates": slots.dates.model_dump() if slots.dates else None,
+            "chat": _chat(messages),
+        },
+        ensure_ascii=False,
+    )
+    plan = await llm.generate_json(llm.MODEL_PLANNER, system_prompt(lang), user, Plan, timeout=TIMEOUT_SECONDS)
+    return _clean(plan, lang)
+
+
+async def fix(plan: Plan, warnings: list[str], lang: str) -> Plan:
+    """One repair round: return a revised Plan that addresses the warnings. Raises llm.LLMError."""
+    user = json.dumps(
+        {"task": FIX_TASK, "plan": plan.model_dump(mode="json"), "warnings": warnings},
+        ensure_ascii=False,
+    )
+    revised = await llm.generate_json(llm.MODEL_PLANNER, system_prompt(lang), user, Plan, timeout=TIMEOUT_SECONDS)
+    return _clean(revised, lang)

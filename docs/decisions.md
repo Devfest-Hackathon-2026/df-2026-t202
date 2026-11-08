@@ -227,3 +227,130 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Rejected:** Letting it raise (a 500 for the user). Returning `None` (tells the user the place doesn't exist, which is wrong).
 - **Why:** Person B's `places.search_text` raises on failure by design (it retries once inside).
 - **Decided by:** Claude (requested by Person B) · 2026-11-08
+
+## Back end: plan engine (Person B)
+
+Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY.md).
+
+### D35. Places searches include opening hours
+- **Chosen:** Request `regularOpeningHours` in every Places search.
+- **Rejected:** Dropping it (plans could send people to closed places). A second call only for some stops (more code and calls).
+- **Why:** It powers the "you arrive after closing time" warning. It moves searches to Google's most expensive Places tier, but with about 25 stops per plan the cost stays small.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D36. Driving times ignore live traffic (`TRAFFIC_UNAWARE`)
+- **Chosen:** `TRAFFIC_UNAWARE` for `DRIVE` legs.
+- **Rejected:** `TRAFFIC_AWARE`. It costs more and is slower.
+- **Why:** Trips are planned weeks or months ahead, so today's traffic says nothing about the trip day.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D37. Places API failure: retry once, then raise
+- **Chosen:** Retry once on temporary errors (429, 500, 502, 503, 504, network drops), then raise. Errors that can't change on a retry (wrong key, bad request) raise at once.
+- **Rejected:** Failing at once (one hiccup breaks a plan). Returning `None` (a broken key would silently look like "not found").
+- **Why:** A short Google hiccup shouldn't break a live demo, but real problems must be visible. The chat side handles the error in D34.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D38. Routes failure or no route → keep the Planner's estimate with a "Please check" badge
+- **Chosen:** `routes.leg` returns `None`; the pipeline keeps the Planner's minutes with `estimate: true`. Failures are logged.
+- **Rejected:** Failing the plan. A missing route is normal (ferries, countries without transit data).
+- **Why:** The plan still finishes, and the UI already has an honest badge for estimates.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D39. `cache_places` stores only `query → placeId` (Google's Places policy)
+- **Chosen:** Cache only the place ID. A cache hit looks the place up fresh by ID (Place Details). `local_name` isn't cached.
+- **Rejected:** Caching full results forever (PLAN.md 7.1 as written). Caching everything for 30 days. No cache at all.
+- **Why:** Google's [Places policies](https://developers.google.com/maps/documentation/places/web-service/policies) allow storing place IDs forever and coordinates for 30 days, but not names or opening hours. Licensing is judged. Repeat runs also get exactly the same place. PLAN.md 7.1 needs a small follow-up PR for the `cache_places` fields.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D40. A broken Places cache is skipped, not fatal
+- **Chosen:** If `cache_get` / `cache_set` fail (Firestore down, no credentials), log a warning and call Google directly.
+- **Rejected:** Raising like other errors. A cache hiccup would break plans and the chat even though Places works.
+- **Why:** The cache only saves calls; it isn't needed for a correct answer.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D41. Only the trip owner can generate a plan
+- **Chosen:** `POST /trips/{id}/plan` uses `require_owner`. **Rejected:** `require_member` (the spec's wording).
+- **Why:** Shared links are view only (F5). A viewer could otherwise overwrite the plan and use up the owner's daily limit.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D42. Plan stub (T2) returns the 4-day demo plan and steps through the progress stages
+- **Chosen:** Save `demo_plan.json` after writing progress spots → routes → videos (about 1 s each), with `reason: "stub"`. No daily-limit count.
+- **Rejected:** A smaller 2-day plan; saving instantly; counting stub calls.
+- **Why:** The front end can build the trip page and the progress screen before the real pipeline exists. The stub calls no paid API. It is replaced in T4 and never shown in the demo video.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D43. `demo_plan.json` lives in `api/app/fixtures/`
+- **Chosen:** Move it from `tests/fixtures/` into `app/`. **Rejected:** Copying `tests/` into the Cloud Run image; a local-only stub.
+- **Why:** The image only contains `app/`, so the stub needs the file there. No change to the deploy files.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D44. Planner: `gemini-3.5-flash`, default thinking, no Search grounding
+- **Chosen:** Flash with the model's default thinking level, one call with the strict `Plan` schema, 120 s timeout.
+- **Rejected:** A Pro model (slower, pricier). LOW or MINIMAL thinking (faster, weaker plans). Google Search grounding (Google requires showing its Search Suggestions with grounded results, which needs a `models.py` field and front-end work; billed per search query).
+- **Why:** Plan quality matters most; Places and Routes verify the draft anyway. Measured: draft in 27–31 s on the Kyushu demo, so the full pipeline may take longer than 30 s; PLAN.md 9.3 updated.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D45. No hotel stops: the hotel area goes in `stay`
+- **Chosen:** The prompt forbids hotel stops. **Rejected:** Gemini naming a specific hotel each night.
+- **Why:** The first test run invented hotels that Google Maps can't verify. Booking is out of scope.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D46. Meal stops are specific, well-known restaurants
+- **Chosen:** Specific restaurants ("Ganso Motoyoshiya"). **Rejected:** Vague stops ("Lunch near Dazaifu"); food areas only.
+- **Why:** Findable on Google Maps, more useful, and each gets a video. T4's Places check replaces names that don't exist.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D47. Places can't find a stop: one Planner replacement round, then drop with a note
+- **Chosen:** `planner.fix` replaces only the missing stops; still missing → removed and listed in `checks`. **Rejected:** Dropping at once.
+- **Why:** Better plans; costs extra only when something is missing.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D48. `/plan` refuses double runs (409 `plan_already_running`) and unfinished chats (409 `chat_not_finished`)
+- **Chosen:** A Firestore transaction claims the trip; "planning" older than 10 min counts as crashed. The daily limit is counted after the claim and released on 429. **Rejected:** No guards; only blocking double runs.
+- **Why:** A double tap would pay Gemini and Maps twice and save two plans.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D49. Reject Places matches outside the destination's country
+- **Chosen:** Country check (skipped when the destination has no country). **Rejected:** A fixed distance from the destination; no check.
+- **Why:** Simple and works worldwide.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D50. Places searches use the Planner's rough location; matches over 30 km away are rejected
+- **Chosen:** The Planner returns approximate `lat`/`lng` per stop; Places searches near it and the pipeline rejects matches more than 30 km away (→ replacement round). **Rejected:** Searching near the previous stop (sequential, slower); no check.
+- **Why:** The first real run matched a same-named restaurant 100 km away in the same country. No extra API calls. Re-run: all stops in the right town, 31 s total.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D51. Separate YouTube API key; Shorts for all stops except start/end/transport
+- **Chosen:** A key restricted to YouTube Data API v3 only. Up to 3 Shorts per stop, skipping stations, ports and rental-car offices. **Rejected:** One shared key; Shorts for every stop; sights only.
+- **Why:** Least privilege. YouTube allows about 100 searches a day; about 15 per new plan, cached 7 days per place.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D52. Drop "Made for Kids" videos
+- **Chosen:** One `videos.list` call (1 quota unit) reads `status.madeForKids`; those videos are dropped. **Rejected:** Keeping them with tracking turned off in the player (needs a `models.py` field and front-end work).
+- **Why:** YouTube developer policy III.E.4.j. Also: the front end should keep autoplay off (III.E.4.i). Cached API data stays under YouTube's 30-day limit (7-day cache).
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D53. Demo pre-cache runs the pipeline twice
+- **Chosen:** `scripts/precache_demo.py` runs the Planner and Places steps twice (`--runs 3` possible) and fills `cache_videos`. **Rejected:** One run.
+- **Why:** Gemini varies between runs; two runs cached 36 demo places. Re-run within 7 days of recording.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-08
+
+### D54. Night views never move earlier than the Planner's time
+- **Chosen:** When re-timing from real legs, a `night_view` stop keeps at least Gemini's time; the stop before gets the extra minutes. **Rejected:** Calculating sunset (needs a per-country time-zone guess); only warning.
+- **Why:** The end-to-end test put Mt. Inasa at 16:55. Gemini already plans night views after sunset. Re-run: 20:45.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
+
+### D55. One rental-car branch for pickup and return
+- **Chosen:** The prompt asks for one specific branch with the same name at both ends; start/end stops keep Gemini's name, and English trips keep Gemini's name when Maps only has a local-script one. **Rejected:** Starting and ending at the station or airport.
+- **Why:** The test plan picked up at one company and returned at another.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
+
+### D56. No cities or regions as stops
+- **Chosen:** Prompt rule plus a check: a Places result typed as a city/region (and not as a point of interest) is treated as not found → replacement round. Adds `types` to the Places field mask. **Rejected:** Prompt only.
+- **Why:** The test plan had "Nagasaki" as a stop.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
+
+### D57. YouTube: at most 4 searches at once; stop searching until the daily reset once the quota is used up
+- **Chosen:** A semaphore of 4 in the pipeline's videos step. When YouTube answers 403/429 with a quota reason, `youtube.py` skips all searches until midnight Pacific (17:00 JST); those stops show the fallback. **Rejected:** Retrying 429s (each retry fails again when the daily quota is gone); no change.
+- **Why:** The end-to-end rerun used up the ~100 searches/day quota. Real check: 3 stops → 1 call in 0.2 s. Demo stops are pre-cached and use no quota; keep empty-cache test runs few.
+- **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
