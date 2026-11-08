@@ -354,3 +354,21 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** A semaphore of 4 in the pipeline's videos step. When YouTube answers 403/429 with a quota reason, `youtube.py` skips all searches until midnight Pacific (17:00 JST); those stops show the fallback. **Rejected:** Retrying 429s (each retry fails again when the daily quota is gone); no change.
 - **Why:** The end-to-end rerun used up the ~100 searches/day quota. Real check: 3 stops → 1 call in 0.2 s. Demo stops are pre-cached and use no quota; keep empty-cache test runs few.
 - **Decided by:** Raghav (Person B, proposed by Claude) · 2026-11-09
+
+### D58. Routes uses the Places key
+- **Chosen:** Mount the `places-api-key` secret as `ROUTES_API_KEY` on Cloud Run.
+- **Rejected:** A separate Routes key (one more key and secret to manage, and no difference in price).
+- **Why:** PLAN.md 12 allows sharing. One key restricted to Places API (New) and Routes API.
+- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D59. App Check with a reCAPTCHA Enterprise score key
+- **Chosen:** A score-based web key for `localhost` and `hosted.app`, registered for the `trip-web` app (token TTL 1 h, min score 0.5). A debug token for local development and the end-to-end script.
+- **Rejected:** reCAPTCHA v3 (older, and Firebase recommends Enterprise). No App Check (anyone could call the API with only an anonymous login and spend our quota).
+- **Why:** The API already requires App Check. The free tier covers 10k checks a month.
+- **Decided by:** Nazmul (option 2: Claude sets it up) · 2026-11-09
+
+### D60. Keep request URLs out of the logs
+- **Chosen:** Set the `httpx` logger to WARNING in `main.py`.
+- **Rejected:** Leaving INFO logging on. The YouTube Data API takes the key as a `key=` query parameter, so httpx's INFO line printed the full key into Cloud Logging (found in the quality evaluation on 2026-11-09).
+- **Why:** Keys must never reach logs (AGENTS.md hard rule 4). A test checks the level.
+- **Decided by:** Claude · 2026-11-09
