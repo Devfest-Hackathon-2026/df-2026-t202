@@ -8,7 +8,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from app.services import firestore, youtube
+from app.services import firestore, places, youtube
 
 SEARCH = {
     "items": [
@@ -129,3 +129,19 @@ def test_next_reset_is_midnight_pacific():
 
     reset = youtube._next_reset(datetime(2026, 11, 9, 5, 0, tzinfo=UTC))  # 14:00 JST = 21:00 Pacific on Nov 8
     assert reset.isoformat() == "2026-11-09T00:00:00-08:00"  # 17:00 JST
+
+
+@pytest.mark.parametrize(
+    ("name", "title", "expected"),
+    [
+        ("稲佐山山頂展望台", "稲佐山の夜景がすごい #shorts", True),  # stacked endings stripped
+        ("熊本ラーメン 黒亭 本店", "桃黒亭一門 落語タイピング", False),  # 2-char piece alone doesn't count
+        ("熊本ラーメン 黒亭 本店", "熊本ラーメン黒亭のにんにく #shorts", True),
+        ("Mt. Inasa night view", "Japan night view in Tokyo", False),  # generic English words don't count
+        ("Mt. Inasa night view", "Inasa mountain night view Nagasaki", True),
+        ("伏見稲荷大社", "伏見稲荷の千本鳥居", True),
+        ("清水寺", "京都の夜景", False),
+    ],
+)
+def test_video_title_must_name_the_spot(name, title, expected):
+    assert places.mentions(title, name) is expected

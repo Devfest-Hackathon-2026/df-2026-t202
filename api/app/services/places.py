@@ -166,10 +166,18 @@ async def local_name(place_id: str, country_code: str) -> str | None:
 # ---------- Name matching (used to keep good names and to drop unrelated YouTube videos) ----------
 
 SPLIT = re.compile(r"[\s・･()（）「」『』【】\[\]〈〉<>|/,、。.:：!！?？#＃\-–—~〜'’\"]+")
-JA_SUFFIXES = ("本店", "支店", "店", "大社", "神社", "神宮", "寺", "駅", "公園", "温泉", "城")
+JA_SUFFIXES = (  # common endings; stripped (repeatedly) to get the distinctive part: 稲佐山山頂展望台 -> 稲佐山
+    "展望台", "展望所", "美術館", "博物館", "水族館", "商店街", "本店", "支店", "大社", "神社", "神宮", "山頂", "庭園",
+    "公園", "温泉", "市場", "通り", "店", "寺", "駅", "城", "峡", "滝", "湖", "橋", "港",
+)  # fmt: skip
+JA_GENERIC = set(JA_SUFFIXES) | {"ラーメン", "レストラン", "カフェ", "ホテル", "旅館", "観光", "夜景", "日本"}
 EN_COMMON = {
     "the", "and", "shrine", "temple", "castle", "park", "garden", "gardens", "station", "onsen", "ramen", "restaurant",
     "cafe", "market", "museum", "street", "tower", "japan", "hotel", "ryokan", "main", "store", "shop", "branch",
+    "night", "view", "views", "viewpoint", "observatory", "observation", "deck", "lake", "river", "beach", "island",
+    "mount", "mountain", "falls", "gorge", "bridge", "city", "town", "village", "house", "center", "centre", "hall",
+    "food", "sushi", "spring", "springs", "best", "famous", "sunset", "sunrise", "area", "national", "old", "new",
+    "great", "kitchen", "honten", "jinja", "dera", "tera",
 }  # fmt: skip
 
 
@@ -178,20 +186,34 @@ def compact(text: str) -> str:
     return SPLIT.sub("", unicodedata.normalize("NFKC", text).lower())
 
 
+def _strip_ja(word: str) -> str:
+    """Remove common endings while at least 3 characters stay: 稲佐山山頂展望台 -> 稲佐山."""
+    changed = True
+    while changed:
+        changed = False
+        for suffix in JA_SUFFIXES:
+            if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                word, changed = word[: -len(suffix)], True
+    return word
+
+
 def name_keys(name: str) -> set[str]:
-    """Distinctive pieces of a place name: whole words, plus Japanese words without a common suffix
-    ("伏見稲荷大社" -> "伏見稲荷"). Latin words need 4+ letters and must not be generic ("temple", "ramen")."""
-    keys = set()
+    """Distinctive pieces of a place name. Latin words need 4+ letters and must not be generic ("temple", "night").
+    Japanese words count whole and without common endings; generic ones ("本店", "ラーメン") never count, and
+    2-character pieces only when the name has nothing longer (so "黒亭" doesn't match "桃黒亭一門")."""
+    keys, short = set(), set()
     for word in SPLIT.split(unicodedata.normalize("NFKC", name).lower()):
+        if not word:
+            continue
         if word.isascii():
             if len(word) >= 4 and word not in EN_COMMON:
                 keys.add(word)
-        elif len(word) >= 2:
-            keys.add(word)
-            for suffix in JA_SUFFIXES:
-                if word.endswith(suffix) and len(word) - len(suffix) >= 3:
-                    keys.add(word[: -len(suffix)])
-    return keys
+            continue
+        for piece in {word, _strip_ja(word)}:
+            if piece in JA_GENERIC:
+                continue
+            (keys if len(piece) >= 3 else short).add(piece)
+    return keys or short
 
 
 def mentions(text: str, *names: str) -> bool:

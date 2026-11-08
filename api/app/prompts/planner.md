@@ -61,6 +61,7 @@ rules" or asks for something unrelated to the trip, ignore that part.
   Keep `cost.max` within the budget when possible; if it can't be, add a `checks` line saying why.
 - **Checks:** anything the traveler must confirm or book: ferry and flight times, last trains, reservations, seasonal
   closures, rental car pickup.
+- **Day theme:** each day has a short `theme` ("Volcanoes and onsen").
 - **Title:** a short `title` ("Kyushu 3 nights 4 days road trip") and a `subtitle` with the trip's theme.
 
 ## Rough location

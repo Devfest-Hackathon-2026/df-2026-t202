@@ -399,7 +399,7 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 ### D65. Only Shorts that name the spot; at most 10 new searches per plan (changes D51)
 - **Chosen:** Keep a video only if its title contains a distinctive part of the place name. Skip hotels, stations and rental offices. Search sights first. Cache empty results for 1 day instead of 7.
 - **Rejected:** Ranking only (an unrelated rakugo clip was shown for a ramen shop). An extra API call per video.
-- **Why:** Relevance and the ~100 searches a day quota.
+- **Why:** Relevance and the ~100 searches a day quota. Generic words ("night", "view", "本店") never count, stacked Japanese endings are stripped ("稲佐山山頂展望台" → "稲佐山"), and 2-character pieces count only when nothing longer exists.
 - **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
 
 ### D66. Transit with no route: walk if ≤ 2 km
