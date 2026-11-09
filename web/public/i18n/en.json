@@ -9,10 +9,6 @@
     "prompt": "Where do you want to go?",
     "promptPlaceholder": "Tell me in your own words",
     "suggestion": {
-      "a": {
-        "label": "Kyushu road trip, 4 days",
-        "send": "A 4-day road trip around Kyushu from Fukuoka, hot springs and night views"
-      },
       "b": {
         "label": "Seoul food weekend",
         "send": "A weekend in Seoul, 2 nights, for street food and markets"
@@ -28,26 +24,24 @@
     },
     "feature": {
       "plan": {
-        "title": "Chat about your trip",
-        "desc": "Destination, dates, budget: tap a card or just type."
+        "title": "Just chat",
+        "desc": "Tap an answer or type it in your own words."
       },
       "real": {
-        "title": "Get a plan that works",
-        "desc": "Every place checked on Google Maps, with real travel times."
+        "title": "Checked against Google Maps",
+        "desc": "Every stop is a real place, with real travel times."
       },
       "share": {
-        "title": "Share it with friends",
-        "desc": "Send one link. They can view it without signing in."
+        "title": "One link for everyone",
+        "desc": "Friends open the plan without signing in."
       }
     },
     "fromMap": "Pick on the map",
     "start": "New trip",
     "hero": {
-      "tagline": "AI trip planner",
-      "title": "Plan a trip you can actually do.",
-      "subtitle": "Tell Tripi where you want to go. It builds a day-by-day plan with real places, real travel times and a short video for every stop."
-    },
-    "footnote": "Free · English and Japanese · Anywhere in the world"
+      "title": "Plan a trip you can actually take.",
+      "subtitle": "Tell Tripi where you want to go. You get a day-by-day plan with real places, real travel times and a short video for every stop."
+    }
   },
   "trip": {
     "untitled": "New trip",

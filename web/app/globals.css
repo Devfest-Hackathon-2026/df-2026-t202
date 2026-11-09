@@ -186,6 +186,15 @@
     animation-delay: calc(var(--i, 0) * var(--stagger));
   }
 
+  /* The prompt shakes once when sent empty; the send arrow flies up before the trip opens. */
+  .nudge {
+    animation: nudge 380ms var(--ease-out);
+  }
+
+  .launch {
+    animation: launch 260ms var(--ease-out) forwards;
+  }
+
   .stagger > :nth-child(2) {
     animation-delay: calc((var(--i, 0) + 1) * var(--stagger));
   }
@@ -337,6 +346,28 @@
 @keyframes grow-x {
   from {
     transform: scaleX(0);
+  }
+}
+
+@keyframes nudge {
+  20% {
+    transform: translateX(-7px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes launch {
+  to {
+    opacity: 0;
+    transform: translateY(-160%);
   }
 }
 

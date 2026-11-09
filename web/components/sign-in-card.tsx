@@ -1,6 +1,5 @@
 'use client';
 
-import { Link2, MapPin, MessageCircle } from 'lucide-react';
 import { signInAsGuest, signInWithGoogle } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 
@@ -28,78 +27,55 @@ function GoogleMark() {
   );
 }
 
-const FEATURES = [
-  { key: 'plan', Icon: MessageCircle },
-  { key: 'real', Icon: MapPin },
-  { key: 'share', Icon: Link2 },
-] as const;
+const FEATURES = ['plan', 'real', 'share'] as const;
 
-/** The signed-out start screen: the name, what Tripi does in three steps, then sign in (PLAN.md 10.1 S7). */
+/** The signed-out start screen: what Tripi does, sign in, and three reasons to trust the plan (PLAN.md 10.1 S7). */
 export function SignInCard() {
   const t = useT();
 
   return (
-    <div className="mx-auto flex w-full max-w-[440px] flex-col gap-6 rounded-3xl border border-white/15 bg-stone-900/50 bg-clip-padding p-7 shadow-[0_24px_60px_rgba(4,12,26,0.45)] backdrop-blur-2xl sm:p-8">
-      <header className="flex flex-col gap-3 text-white">
-        <div className="flex items-center gap-2.5">
-          <span className="text-[30px] leading-none font-bold tracking-[-0.02em]">
-            {t('app.name')}
-          </span>
-          <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85">
-            {t('home.hero.tagline')}
-          </span>
-        </div>
-        <h1 className="m-0 text-[22px] leading-snug font-semibold whitespace-pre-line [word-break:auto-phrase]">
+    <div className="flex w-full flex-col gap-10 text-white [text-shadow:0_1px_20px_rgba(4,12,26,0.35)]">
+      <section className="flex max-w-[560px] flex-col gap-5">
+        <h1 className="m-0 text-[34px] leading-[1.15] font-semibold tracking-[-0.02em] whitespace-pre-line [word-break:auto-phrase] sm:text-[46px]">
           {t('home.hero.title')}
         </h1>
-        <p className="m-0 text-[14px] leading-relaxed text-white/75 [word-break:auto-phrase]">
+        <p className="m-0 max-w-[480px] text-[16px] leading-relaxed text-white/85 [word-break:auto-phrase] sm:text-[17px]">
           {t('home.hero.subtitle')}
         </p>
-      </header>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+          <button
+            type="button"
+            className="text-ink flex min-h-12 items-center gap-3 rounded-full bg-white px-6 text-[15px] font-semibold [text-shadow:none] shadow-[0_8px_24px_rgba(4,12,26,0.3)] transition-transform active:scale-[0.98]"
+            onClick={() => void signInWithGoogle()}
+          >
+            <GoogleMark />
+            {t('auth.signInGoogle')}
+          </button>
+        </div>
 
-      <ol className="m-0 flex list-none flex-col gap-3.5 p-0">
-        {FEATURES.map(({ key, Icon }, i) => (
-          <li key={key} className="flex items-start gap-3 text-white">
-            <span className="relative flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white/15">
-              <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
-              <span
-                className="bg-accent absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                aria-hidden="true"
-              >
-                {i + 1}
-              </span>
-            </span>
-            <span className="flex flex-col gap-0.5 pt-0.5">
-              <span className="text-[14.5px] font-semibold">{t(`home.feature.${key}.title`)}</span>
-              <span className="text-[13px] leading-snug text-white/70 [word-break:auto-phrase]">
-                {t(`home.feature.${key}.desc`)}
-              </span>
+        {/* Development only: lets the flow be exercised on localhost without a Google account.
+            It is never rendered on a deployed host. */}
+        {typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
+          <button
+            type="button"
+            className="self-start text-[13px] text-white/80 underline underline-offset-4"
+            onClick={() => void signInAsGuest()}
+          >
+            {t('auth.signInGuest')}
+          </button>
+        )}
+      </section>
+
+      <ul className="m-0 grid list-none grid-cols-1 gap-4 border-t border-white/35 p-0 pt-5 sm:grid-cols-3 sm:gap-6">
+        {FEATURES.map((key) => (
+          <li key={key} className="flex flex-col gap-1">
+            <span className="text-[14px] font-semibold">{t(`home.feature.${key}.title`)}</span>
+            <span className="text-[13px] leading-snug text-white/85 [word-break:auto-phrase]">
+              {t(`home.feature.${key}.desc`)}
             </span>
           </li>
         ))}
-      </ol>
-
-      <button
-        type="button"
-        className="text-ink flex min-h-12 items-center justify-center gap-3 rounded-2xl bg-white text-[15px] font-semibold shadow-[0_10px_28px_rgba(4,12,26,0.35)]"
-        onClick={() => void signInWithGoogle()}
-      >
-        <GoogleMark />
-        {t('auth.signInGoogle')}
-      </button>
-      <p className="-mt-3 text-center text-[12px] text-white/60">{t('home.footnote')}</p>
-
-      {/* Development only: lets the flow be exercised on localhost without a Google account.
-          It is never rendered on a deployed host. */}
-      {typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
-        <button
-          type="button"
-          className="min-h-10 rounded-xl border border-white/25 bg-white/10 text-[13px] text-white"
-          onClick={() => void signInAsGuest()}
-        >
-          {t('auth.signInGuest')}
-        </button>
-      )}
+      </ul>
     </div>
   );
 }

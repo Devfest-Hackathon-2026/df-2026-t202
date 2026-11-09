@@ -1,9 +1,9 @@
 'use client';
 
 // S7 Start: the prompt over the dusk photo, then the trip (PLAN.md 10.1).
-import { ArrowUp, Landmark, Mountain, Sparkles, UtensilsCrossed } from 'lucide-react';
+import { ArrowUp, Landmark, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { LanguageSwitch } from '@/components/language-switch';
 import { Spinner } from '@/components/page-loader';
 import { SignInCard } from '@/components/sign-in-card';
@@ -15,11 +15,11 @@ import { useAuthUser } from '@/lib/auth';
 import { useLanguage, useT } from '@/lib/i18n';
 import { useMyTrips } from '@/lib/trip';
 
-/** Ready-made trips in three countries, plus "Surprise me". Each sends a full sentence, so one tap
- *  fills several questions at once (place, length, style). */
-const SUGGESTION_KEYS = ['a', 'b', 'c', 'd'] as const;
+/** Ready-made trips, plus "Surprise me". Each sends a full sentence, so one tap fills several
+ *  questions at once (place, length, style). */
+const SUGGESTION_KEYS = ['b', 'c', 'd'] as const;
 
-const SUGGESTION_ICONS = { a: Mountain, b: UtensilsCrossed, c: Landmark, d: Sparkles } as const;
+const SUGGESTION_ICONS = { b: UtensilsCrossed, c: Landmark, d: Sparkles } as const;
 
 // Same glass as the sign-in card: both sit on the dusk photo and hold white text.
 const PROMPT =
@@ -40,6 +40,20 @@ export default function HomePage() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [nudge, setNudge] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  /** Send: an empty prompt shakes and takes the cursor; otherwise the arrow flies up, then the trip starts. */
+  function send() {
+    if (busy || launching) return;
+    if (!text.trim()) {
+      setNudge(true);
+      inputRef.current?.focus();
+      return;
+    }
+    setLaunching(true);
+  }
 
   /**
    * Create the trip and open it straight away. The first sentence is handed to the trip page,
@@ -56,12 +70,20 @@ export default function HomePage() {
     } catch {
       setFailed(true);
       setBusy(false);
+      setLaunching(false);
     }
   }
 
   return (
     <main className="relative flex h-[100svh] flex-col overflow-hidden bg-[url('/dusk.webp')] bg-cover bg-[position:50%_45%]">
-      <div className="flex items-center justify-end gap-2 px-4 py-3">
+      <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
+        {!loading && !user ? (
+          <span className="text-[22px] font-bold tracking-[-0.02em] text-white [text-shadow:0_1px_16px_rgba(4,12,26,0.35)]">
+            {t('app.name')}
+          </span>
+        ) : (
+          <span />
+        )}
         {user ? <UserMenu user={user} trips={trips} /> : <LanguageSwitch />}
       </div>
 
@@ -73,46 +95,65 @@ export default function HomePage() {
           </p>
         ) : user ? (
           <>
-            <form
-              className={`${PROMPT} rise`}
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!busy) void start();
-              }}
-            >
-              <h1 className="sr-only">{t('home.prompt')}</h1>
-              <textarea
-                className={INPUT}
-                rows={2}
-                value={text}
-                placeholder={t('home.prompt')}
-                aria-label={t('home.prompt')}
-                disabled={busy}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  // Enter sends; Shift+Enter is a new line.
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!busy) void start();
-                  }
+            <div className="rise">
+              <form
+                className={`${PROMPT} ${nudge ? 'nudge' : ''}`}
+                onAnimationEnd={(e) => {
+                  if (e.animationName === 'nudge') setNudge(false);
                 }}
-              />
-              <div className="flex items-end justify-end gap-2">
-                <button
-                  type="submit"
-                  className="enabled:hover:bg-accent enabled:hover:border-accent flex h-12 w-12 flex-none items-center justify-center rounded-2xl border border-white/25 bg-white/15 text-white transition-colors disabled:text-white/40"
-                  aria-label={t('home.newTrip')}
-                  disabled={busy || !text.trim()}
-                  aria-busy={busy}
-                >
-                  {busy ? (
-                    <Spinner size={20} />
-                  ) : (
-                    <ArrowUp size={20} strokeWidth={2.4} aria-hidden="true" />
-                  )}
-                </button>
-              </div>
-            </form>
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  send();
+                }}
+              >
+                <h1 className="sr-only">{t('home.prompt')}</h1>
+                <textarea
+                  ref={inputRef}
+                  className={INPUT}
+                  rows={2}
+                  value={text}
+                  placeholder={t('home.prompt')}
+                  aria-label={t('home.prompt')}
+                  disabled={busy}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter sends; Shift+Enter is a new line.
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                />
+                <div className="flex items-end justify-end gap-2">
+                  <button
+                    type="submit"
+                    className={[
+                      'flex h-12 w-12 flex-none items-center justify-center overflow-hidden rounded-2xl border text-white transition-[background-color,border-color,transform,box-shadow] duration-200 active:scale-90',
+                      text.trim() || launching || busy
+                        ? 'bg-accent border-accent shadow-[0_8px_20px_rgba(217,68,59,0.4)] hover:brightness-110'
+                        : 'border-white/25 bg-white/15 hover:bg-white/25',
+                    ].join(' ')}
+                    aria-label={t('home.newTrip')}
+                    disabled={busy}
+                    aria-busy={busy}
+                  >
+                    {busy ? (
+                      <Spinner size={20} />
+                    ) : (
+                      <ArrowUp
+                        size={20}
+                        strokeWidth={2.4}
+                        aria-hidden="true"
+                        className={launching ? 'launch' : ''}
+                        onAnimationEnd={() => {
+                          if (launching) void start();
+                        }}
+                      />
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
 
             {/* The chips follow the prompt in, one after another. */}
             <div
