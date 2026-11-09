@@ -39,7 +39,7 @@
 | --- | --- |
 | [@NazmulHayat](https://github.com/NazmulHayat) | バックエンド（チャット・認証・データ基盤）、インフラ・デプロイ |
 | [@raghavraibansal](https://github.com/raghavraibansal) | バックエンド（プラン生成エンジン：Planner・Places・Routes・YouTube） |
-| [@SomaTakata](https://github.com/SomaTakata) | フロントエンド・デザイン |
+| [@SomaTakata](https://github.com/SomaTakata) | フロントエンド開発（Next.js）・UI デザイン・プロダクト企画 |
 
 ## プロダクト概要
 
