@@ -1,4 +1,4 @@
-# Attribution and licenses
+# Tripi — attribution and licenses
 
 Source for the required attribution and licensing sheet (著作物利用シート). Add a row for every library, font, data
 source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check each license at the source before submission.
@@ -33,9 +33,11 @@ source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check 
 ## Fonts, data, content, images
 | Item | Type | License / terms |
 | --- | --- | --- |
-| Noto Sans JP (Google Fonts) | Font | SIL Open Font License 1.1 |
+| Inter (Google Fonts, via `next/font`) | Font | SIL Open Font License 1.1 |
+| Noto Sans JP (Google Fonts, via `next/font`) | Font | SIL Open Font License 1.1 |
 | Google Maps / Places / Routes data and photos | Data | Google Maps Platform Terms of Service (show attribution) |
 | YouTube videos | Content | YouTube API Services Terms (official embedded player only) |
 | Gemini (Vertex AI) | Service | Google Cloud Terms of Service |
-| Start-screen image `web/public/dusk.webp` | Image | **TBD — ask the team where it came from.** Supplied by a team member as "Serene Island Sunset.png". Record the photographer or the generating tool, and the licence, before submission. |
+| Start-screen image `web/public/dusk.webp` | Image | Original image made by Team Kyu_cat for Tripi (not copied from a third party). Released with this repo under the MIT License. |
 | Google Cloud architecture icons | Image | Google (cloud.google.com/icons) |
+| README screenshots `docs/images/*.jpg` | Image | Our own app screenshots. Map imagery: Map data ©2026 Google (Google Maps Platform attribution) |

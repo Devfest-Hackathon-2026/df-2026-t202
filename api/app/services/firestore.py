@@ -1,4 +1,4 @@
-"""Firestore helpers (BACKEND_PERSON_A.md 3.5). Person B imports these. Keep the signatures stable.
+"""Firestore helpers. Person B imports these. Keep the signatures stable.
 
 The API is the only writer of trips, messages, plans, shares and caches (the Admin SDK and the
 server's credentials bypass the security rules). On Cloud Run the client uses the service account;

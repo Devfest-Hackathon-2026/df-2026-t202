@@ -1,4 +1,4 @@
-"""Plan endpoints (Person B). BACKEND_PERSON_B.md T4, PLAN.md 9.1 / 9.3.
+"""Plan endpoints. PLAN.md 9.1 / 9.3.
 
 POST /trips/{trip_id}/plan runs the plan pipeline and returns {"planId"}. The request stays open until the plan
 is saved (it can take more than 30 s, D44); the front end shows trips.progress meanwhile.

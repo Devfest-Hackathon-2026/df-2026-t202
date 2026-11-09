@@ -1,4 +1,4 @@
-"""Trip, chat and sharing endpoints (BACKEND_PERSON_A.md 3.7, T2–T4).
+"""Trip, chat and sharing endpoints.
 
 Writes that read-then-change the trip run in a Firestore transaction, so double taps and two tabs can't
 overwrite each other. Gemini and Places calls happen before the transaction (it must stay short).

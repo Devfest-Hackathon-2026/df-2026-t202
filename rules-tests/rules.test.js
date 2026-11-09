@@ -1,4 +1,4 @@
-// Firestore security rules tests (PLAN.md 11.1, BACKEND_PERSON_A.md T5). Run: npm test
+// Firestore security rules tests (PLAN.md 11.1). Run: npm test
 import { readFileSync } from 'node:fs';
 import {
   assertFails,

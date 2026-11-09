@@ -13,12 +13,12 @@ If the code needs to differ from PLAN.md, **update PLAN.md in the same commit**,
 | What to build, data shapes, API, screens | `PLAN.md` |
 | Pydantic models (the code version of PLAN.md 7) | `api/app/models.py` |
 | Kyushu demo input and a hand-written plan | `api/tests/fixtures/demo_slots.json`, `api/app/fixtures/demo_plan.json` |
-| Judging criteria and disqualifiers (kickoff slides) | `docs/SUBMISSION.md` |
 | Libraries and licenses | `ATTRIBUTION.md` |
-| Where and why we used AI | `docs/ai-usage.md` |
+| Where and why we used AI | `AI_USAGE_LOG.md` |
+| Every decision with options, why, who decided | `docs/decisions.md` |
 
 ## Product in one line
-AI Trip Planner (name TBD; no "Kyushu" in the name). The user answers question cards in a chat. The server builds a
+**Tripi** (no "Kyushu" in the name). The user answers question cards in a chat. The server builds a
 day-by-day plan with real places (Places API), real travel times (Routes API) and a YouTube Short per stop, then the user
 shares a view-only link. Worldwide, English or Japanese. Demo: a Kyushu road trip from Fukuoka.
 
@@ -43,8 +43,8 @@ Priority: the MVP (PLAN.md 3.1, F1–F5 + F10) working end to end > polish > str
 5. Keep it simple and readable. This is a 5-day hackathon. No speculative abstractions, no drive-by refactors.
 6. For a non-trivial choice (new library, service, data shape), propose 2–3 options with pros and cons and let a human
    choose. Then add an entry to `docs/decisions.md` (chosen, rejected and why, who decided, date) in the same commit.
-   This is the hackathon theme ("Own the Why") and feeds the submission doc's Rationale section.
-7. When AI generated a large part of a feature, add a line to `docs/ai-usage.md` (what, where, why).
+   This is the hackathon theme ("Own the Why, Build with Intent").
+7. When AI generated a large part of a feature, add a line to `AI_USAGE_LOG.md` (what, where, why).
 
 ## Repo layout (PLAN.md 6)
 ```

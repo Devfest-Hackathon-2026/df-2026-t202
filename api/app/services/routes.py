@@ -1,4 +1,4 @@
-"""Routes API computeRoutes over httpx (Person B). BACKEND_PERSON_B.md T1, PLAN.md 9.3 step 4.
+"""Routes API computeRoutes over httpx. PLAN.md 9.3 step 4.
 
 One call per leg (TRANSIT can't use intermediate waypoints anyway). FLIGHT / FERRY are never sent to the API:
 we return None and the pipeline keeps the Planner's minutes with estimate=True.

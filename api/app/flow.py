@@ -1,4 +1,4 @@
-"""Chat step machine (PLAN.md 8.1, BACKEND_PERSON_A.md T2).
+"""Chat step machine (PLAN.md 8.1).
 
 The server, not the LLM, decides which question comes next. Everything here is pure (no I/O) except
 search_place(), so it is easy to unit-test.

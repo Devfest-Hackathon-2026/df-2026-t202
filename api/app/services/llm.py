@@ -1,4 +1,4 @@
-"""Gemini through Vertex AI (google-genai SDK). BACKEND_PERSON_A.md 3.5.
+"""Gemini through Vertex AI (google-genai SDK). PLAN.md 9.2.
 
 generate_json() asks for JSON that matches a Pydantic model, validates it, and retries once with the
 validation error. Use it for every agent, so every AI output is validated (PLAN.md 14 rule 4).

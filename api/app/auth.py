@@ -1,4 +1,4 @@
-"""Request authentication (BACKEND_PERSON_A.md 3.5, 3.7).
+"""Request authentication.
 
 Every endpoint except /health and /healthz needs:
   Authorization: Bearer <Firebase ID token>    (who the user is)

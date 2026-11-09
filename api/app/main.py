@@ -1,4 +1,4 @@
-"""Planner API (FastAPI on Cloud Run). Endpoints: BACKEND_PERSON_A.md 3.7."""
+"""Tripi API (FastAPI on Cloud Run). Endpoints: PLAN.md 9.1."""
 
 import logging
 
@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 settings = get_settings()
-app = FastAPI(title="AI Trip Planner API", docs_url=None if settings.env == "production" else "/docs")
+app = FastAPI(title="Tripi API", docs_url=None if settings.env == "production" else "/docs")
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,4 +1,4 @@
-"""Settings from env vars (BACKEND_PERSON_A.md 7).
+"""Settings from env vars.
 
 Locally from api/.env; on Cloud Run from env vars and Secret Manager.
 """
