@@ -19,7 +19,7 @@ app/flow.py            ✅ (A) next_step, question_for, card_for, apply_answer, 
 app/routers/trips.py   ✅ (A) create trip, post message, share, join share
 app/routers/plan.py    ✅ (B) POST /trips/{id}/plan and the edit routes
 app/agents/concierge.py ✅ (A) run(): free text → ConciergeOutput via llm.generate_json
-app/agents/planner.py  ✅ (B) slots + chat → draft Plan; fix() → PlanFix (changed days only, D83)
+app/agents/planner.py  ✅ (B) slots + chat → draft Plan; fix() → PlanFix (changed days only, D6)
 app/services/firestore.py ✅ (A) async helpers: db, now, get_trip, update_trip, list_messages, add_message, save_plan, cache_get, cache_set
 app/services/llm.py    ✅ (A) generate_json, MODEL_FAST, MODEL_PLANNER, LLMError
 app/services/limits.py ✅ (A) check_plan_limit (per user per day), check_message_limit (per trip)
@@ -72,9 +72,9 @@ out = await llm.generate_json(  # cached Vertex AI client, JSON mode, validates,
 - Send `languageCode` = trip language. For `nameLocal`, look up again in the destination language (PLAN.md 9.5).
 - Routes: one `computeRoutes` call per leg for TRANSIT (no waypoints). FLIGHT/FERRY or no route → keep the Planner minutes with `estimate: true`.
 - YouTube `search.list`: `type=video`, `videoDuration=short`, `maxResults=10`, `regionCode`=destination, query
-  `"{name} 観光 shorts"` / `"{name} travel shorts"`, **no `relevanceLanguage`**. Rank travel videos first (PLAN.md 9.4, D81).
+  `"{name} 観光 shorts"` / `"{name} travel shorts"`, **no `relevanceLanguage`**. Rank travel videos first (PLAN.md 9.4, D12).
   Cache by placeId in `cache_videos` for 7 days. Pre-cache demo spots before recording.
-- Run calls in parallel with `asyncio.gather`. Plan quality comes before speed (D44); the Planner draft takes about 30 s, a whole plan 30–45 s (D83).
+- Run calls in parallel with `asyncio.gather`. Plan quality comes before speed (D4); the Planner draft takes about 30 s, a whole plan 30–45 s (D6).
 - Keys are read from `get_settings()` (`SecretStr` → `.get_secret_value()`). Never log them.
 
 ## Firestore (Admin SDK bypasses the rules)

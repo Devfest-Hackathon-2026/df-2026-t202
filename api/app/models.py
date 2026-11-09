@@ -148,7 +148,7 @@ class DayFix(BaseModel):
 
 
 class PlanFix(BaseModel):
-    """Planner repair output (not stored). Only the changed days, so the call stays short (D83)."""
+    """Planner repair output (not stored). Only the changed days, so the call stays short (D6)."""
     days: list[DayFix]
 
 

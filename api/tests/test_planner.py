@@ -61,7 +61,7 @@ def test_draft_cleans_fields_the_pipeline_fills(monkeypatch):
 
     first = out.days[0].stops[0]
     assert (first.placeId, first.videoIds, first.warn, first.leg.polyline) == (None, [], None, None)
-    assert first.lat is not None  # rough location kept for the Places search (D50)
+    assert first.lat is not None  # rough location kept for the Places search (D8)
     assert all(day.stops[-1].leg is None for day in out.days)
     assert out.days[2].stops[0].leg.mode == "FERRY" and out.days[2].stops[0].leg.estimate
     assert out.language == "ja"

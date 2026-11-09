@@ -16,7 +16,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 - Development started: Nov 5 (Thu) 10:00 JST
 - **Code freeze and submission: Nov 10 (Tue) 19:00 JST.** After this time the GitHub repo becomes read-only.
 - **Internal target: submit by Nov 10 (Tue) 18:00 JST.** Keep one hour as a buffer.
-- The deployed URL must keep working until **Nov 14 (Sat)** (Regional Day). Public link: https://tripi.web.app (D77).
+- The deployed URL must keep working until **Nov 14 (Sat)** (Regional Day). Public link: https://tripi.web.app.
 - If the team reaches the finals, development can continue until Demo Day (Nov 27).
 
 ---
@@ -85,7 +85,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 
 | Layer | Choice |
 |---|---|
-| Front-end framework | **Next.js 16** (App Router, React 19). Switched from Angular on Nov 9: the only front-end code was a skeleton, the team knows Next.js, and App Hosting has preconfigured support for it (see `docs/decisions.md` D70). |
+| Front-end framework | **Next.js 16** (App Router, React 19). Switched from Angular on Nov 9: the only front-end code was a skeleton, the team knows Next.js, and App Hosting has preconfigured support for it (see `docs/decisions.md` D18). |
 | Styling | **Tailwind CSS v4**. The design tokens live in `@theme` in `app/globals.css`, so each one is both a CSS variable and a utility (`--color-ink` → `bg-ink`). No component library. |
 | Map | `@vis.gl/react-google-maps` (the Google Maps Platform React library) + Maps JavaScript API |
 | Destination search | Places Autocomplete (Maps JavaScript API, Places library) |
@@ -269,9 +269,9 @@ Rules:
 - `leg` is the move from this stop to the next. The last stop of a day has `leg: null`.
 - `leg.mode`: `"DRIVE"`, `"TRANSIT"`, `"WALK"`, `"FLIGHT"`, `"FERRY"`.
 - `leg.estimate: true` when the Routes API cannot compute it (flights, ferries, countries with no transit data). Gemini fills `minutes`. The UI shows a "please check" badge and "about" before the minutes.
-- `leg.line`: what to ride for TRANSIT, FERRY and FLIGHT (`"Kamome Shinkansen"`, `"Bus 52"`), else `null`. From the Routes API's transit details when it has a route, otherwise from the Planner. The UI shows the mode first, then the line, then the time: "Public transport · Kamome Shinkansen · about 1 h 30 min" (D82).
+- `leg.line`: what to ride for TRANSIT, FERRY and FLIGHT (`"Kamome Shinkansen"`, `"Bus 52"`), else `null`. From the Routes API's transit details when it has a route, otherwise from the Planner. The UI shows the mode first, then the line, then the time: "Public transport · Kamome Shinkansen · about 1 h 30 min" (D9).
 - A WALK the Routes API times at over 30 minutes becomes the trip's ride mode (DRIVE, or TRANSIT for train/bus trips).
-- A TRANSIT route from the Routes API that rides no line (a walk-only answer, as in Japan) counts as no route: the leg walks if the stops are close, else keeps the Planner's train time and line with `estimate: true` (D82).
+- A TRANSIT route from the Routes API that rides no line (a walk-only answer, as in Japan) counts as no route: the leg walks if the stops are close, else keeps the Planner's train time and line with `estimate: true` (D9).
 - `time` is local time at the destination (`"HH:MM"`). No time-zone conversion in the MVP.
 - Costs are always ranges (`min`/`max`), never one exact number. UI shows an "estimate" badge.
 - `nameLocal` is the name in the destination's language. It is used for YouTube search.
@@ -387,21 +387,21 @@ Implementation notes:
 5. Recalculate stop times from the real leg times. Add warnings:
    - Driving more than 5 hours in one day.
    - Arrival outside opening hours.
-6. If a spot was not found, a stop is closed on arrival, or there are 3 or more warnings, ask the Planner to fix the plan **once**, with all of them in one call. It returns only the changed days (`PlanFix`: `{days: [{day, stops}]}`, not stored); the server swaps them in and repeats steps 3–5 for changed stops only (D83).
+6. If a spot was not found, a stop is closed on arrival, or there are 3 or more warnings, ask the Planner to fix the plan **once**, with all of them in one call. It returns only the changed days (`PlanFix`: `{days: [{day, stops}]}`, not stored); the server swaps them in and repeats steps 3–5 for changed stops only (D6).
 7. Set `progress = "videos"`. **Media** gets Shorts for each stop (9.4).
 8. Save `trips/{id}/plans/{planId}` (version 1). Set `currentPlanId`, `status = "ready"`, `progress = "done"`.
 
-Plan quality comes before speed: the Planner alone takes about 30 s, so a plan takes about 30–45 s (D44, D83). Run Places, Routes and YouTube calls in parallel (`asyncio.gather`) to keep the rest fast; the front end shows progress meanwhile.
+Plan quality comes before speed: the Planner alone takes about 30 s, so a plan takes about 30–45 s (D4, D6). Run Places, Routes and YouTube calls in parallel (`asyncio.gather`) to keep the rest fast; the front end shows progress meanwhile.
 
 ### 9.4 YouTube Shorts
 
 - `search.list` with `part=snippet`, `type=video`, `videoDuration=short`, `maxResults=10`, `regionCode={destination country}`.
 - Query: `"{name} 観光 shorts"` for a Japanese name, else `"{name} travel shorts"`; the trip-language name first, then the
-  other name when fewer than 3 were found (D79). **Do not set `relevanceLanguage`.** Videos in any language are OK.
+  other name when fewer than 3 were found. **Do not set `relevanceLanguage`.** Videos in any language are OK.
 - Keep only results whose title contains the spot name.
 - One `videos.list` call (1 unit) drops Made for Kids videos and ranks the rest: travel videos first (a travel word or
   hashtag such as `#japantravel`, `#旅行`, `観光` in the title, description or tags), then the trip-language search, then
-  the most views. Videos without a travel sign are kept, ranked last (D81).
+  the most views. Videos without a travel sign are kept, ranked last (D12).
 - Cache by `placeId` for 7 days in `cache_videos/{placeId}` (with a version `v`; a new way of picking re-searches).
 - The default quota allows about 100 searches per day. Pre-cache all demo spots before recording.
 - When nothing is found or YouTube is rate-limited, the plan still loads without videos; the place panel shows a Places photo when available. No YouTube search links. A later successful plan generation shows its returned videos normally.
@@ -424,7 +424,7 @@ Plan quality comes before speed: the Planner alone takes about 30 s, so a plan t
 
 ### 10.1 Screens
 
-The design mock (team canvas, `docs/decisions.md` D71) puts the whole trip in **one screen**: a full-screen
+The design mock (team canvas, `docs/decisions.md` D19) puts the whole trip in **one screen**: a full-screen
 map with a bottom sheet over it. The sheet has two tabs and three heights (peek / half / full).
 
 | Screen | Route | MVP? | Contents |
@@ -450,21 +450,21 @@ right, and the place card and the Shorts viewer sit beside the column instead of
 - The trip document in Firestore is the source of truth. A Firestore listener feeds React state for rendering.
 - The current card comes from the last AI message's `ui` field.
 - Temporary card state (for example, a half-selected date range) stays in the component only.
-- During planning, show progress text from `trips.progress`: "Planning your days → Calculating travel times → Finding videos", with "Usually 30–60 seconds" (D83).
+- During planning, show progress text from `trips.progress`: "Planning your days → Calculating travel times → Finding videos", with "Usually 30–60 seconds" (D6).
 
 ### 10.3 Language
 
-- The language (`"en"` or `"ja"`) lives in the `__session` cookie (the only cookie Firebase Hosting forwards, D77), so `app/layout.tsx` renders the right text on the server with no flash. Also save it to `users/{uid}.language`.
+- The language (`"en"` or `"ja"`) lives in the `__session` cookie (the only cookie Firebase Hosting forwards), so `app/layout.tsx` renders the right text on the server with no flash. Also save it to `users/{uid}.language`.
 - UI text from `public/i18n/en.json` and `ja.json` through `useT()` in `lib/i18n.tsx`. Never hard-code UI text.
 - The Maps JavaScript API language is set when the script loads. After a language change, reload the page.
 - A viewer of a shared trip sees UI in their own language. The plan text stays in the trip's language.
 
 ### 10.4 Design
 
-Tokens live in `web/app/globals.css` and come from the design mock (`docs/decisions.md` D71). Never hard-code a color.
+Tokens live in `web/app/globals.css` and come from the design mock (`docs/decisions.md` D19). Never hard-code a color.
 
 - Start screen: the dusk-seascape image (`web/public/dusk.webp`) with frosted-glass panels on top. Inside a trip, the map is the background.
-- Frosted glass for map bars/chips and the initial chat over the start photo. Once a plan exists, the entire sheet shares the original dusk photo under an 82–84% slate overlay across its header, tabs, chat, and itinerary, with soft light text. Chat uses raised slate AI bubbles, muted blue user bubbles, and a matching composer. Sticky day headers and the chat composer use nearly opaque slate surfaces so scrolling text stays readable. The itinerary has sticky day headers, numbered stops, and separate neutral travel rows. Tabs are slate segmented controls with an outlined Share button; the trip title appears once (D84).
+- Frosted glass for map bars/chips and the initial chat over the start photo. Once a plan exists, the entire sheet shares the original dusk photo under an 82–84% slate overlay across its header, tabs, chat, and itinerary, with soft light text. Chat uses raised slate AI bubbles, muted blue user bubbles, and a matching composer. Sticky day headers and the chat composer use nearly opaque slate surfaces so scrolling text stays readable. The itinerary has sticky day headers, numbered stops, and separate neutral travel rows. Tabs are slate segmented controls with an outlined Share button; the trip title appears once.
 - Ink `--ink` #222222, secondary text `--muted` #6A6A6A, lines `--line` #DDDDDD.
 - Primary buttons and the send button: `--accent` #D9443B. Selected pills: solid ink.
 - Each day's route has its own color (`--day-1..7`; days 1–4 are #D9443B, #2563EB, #059669, #B45309). Pins show the order in the day.
@@ -531,7 +531,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 - [x] INF: GCP project, billing, budget alert, enable APIs (Vertex AI, Maps JS, Places New, Routes, YouTube Data v3, Secret Manager, Cloud Run, Firestore).
 - [x] INF: Firebase project, Auth (Google + anonymous), Firestore, App Check.
 - [x] INF: Create API keys, restrict them, store server keys in Secret Manager.
-- [x] FE: front-end skeleton, deploy "hello" to App Hosting. (Angular on Nov 8; rebuilt on Next.js on Nov 9, D70.)
+- [x] FE: front-end skeleton, deploy "hello" to App Hosting. (Angular on Nov 8; rebuilt on Next.js on Nov 9, D18.)
 - [x] BE: FastAPI skeleton with `/healthz`, deploy to Cloud Run (`gcloud run deploy --source`).
 - [x] DES: Name the app (**Tripi**). Simple mockups of S1 and S3.
 - **Check:** both URLs work on a phone.
@@ -548,7 +548,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 - [x] BE: `places.py`, `routes.py`, Planner agent, `pipeline.py`, `POST /trips/{id}/plan`.
 - [x] BE: Warnings and one fix round.
 - [x] FE: Progress display during planning.
-- **Check:** the Kyushu demo input gives a realistic 4-day plan (quality first; about 30–45 seconds, D44, D83).
+- **Check:** the Kyushu demo input gives a realistic 4-day plan (quality first; about 30–45 seconds, D4, D6).
 
 ### Mon Nov 9 — evening: M3 Trip page + Shorts (by 24:00)
 - [x] FE: S3 map with colored routes and numbered pins, timeline, cost, checks, badges.
@@ -668,6 +668,6 @@ Everything in the video must be real app output.
 
 - [x] Final app name: **Tripi**
 - [x] Team members and roles: see `README.md`
-- [x] Front-end framework: **Next.js** (decided 2026-11-09, `docs/decisions.md` D70). Angular was the first choice until then.
+- [x] Front-end framework: **Next.js** (decided 2026-11-09, `docs/decisions.md` D18). Angular was the first choice until then.
 - [ ] Track: in-person venue or online?
 - [ ] Evidence for the problem (survey?)

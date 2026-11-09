@@ -2,7 +2,7 @@
 
 Headers: X-Goog-Api-Key (PLACES_API_KEY) and X-Goog-FieldMask with only the fields we use (the mask sets the price).
 
-Caching follows Google's Places policy (docs/decisions.md P9): cache_places stores only query -> placeId,
+Caching follows Google's Places policy (docs/decisions.md D10): cache_places stores only query -> placeId,
 which may be kept forever. Names, coordinates and opening hours are never stored; a cache hit looks the place up
 fresh by its ID (Place Details), so repeat runs also get exactly the same place.
 The cache is optional: if Firestore fails, we log it and call Google directly (decision 10).
@@ -23,7 +23,7 @@ from app.config import get_settings
 from app.services import firestore
 
 BASE = "https://places.googleapis.com/v1"
-# regularOpeningHours is an Enterprise SKU field (D35), so every search is billed as Text Search Enterprise; the other
+# regularOpeningHours is an Enterprise SKU field, so every search is billed as Text Search Enterprise; the other
 # fields (types, primaryType) are Pro fields and cost nothing extra on top of that.
 PLACE_FIELDS = "id,displayName,location,regularOpeningHours,addressComponents,types,primaryType"
 SEARCH_FIELDS = ",".join(f"places.{f}" for f in PLACE_FIELDS.split(","))
@@ -45,7 +45,7 @@ COUNTRY_LANG = {
     "IT": "it",
 }
 
-# Retry once on temporary failures, then fail loudly (docs/decisions.md P5).
+# Retry once on temporary failures, then fail loudly.
 RETRY_STATUS = {429, 500, 502, 503, 504}
 RETRY_DELAY_S = 0.5
 

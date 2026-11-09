@@ -60,7 +60,7 @@ function formatMinutes(minutes: number, t: (key: string) => string): string {
 }
 
 /** "Public transport · Kamome Shinkansen · about 1 h 30 min": how you travel (always, so a line name never hides
- *  whether you walk or ride, D82), what to ride when known, then the time; "about" when estimated. */
+ *  whether you walk or ride, D9), what to ride when known, then the time; "about" when estimated. */
 export function legText(leg: Leg, t: (key: string) => string): string {
   const time = formatMinutes(leg.minutes, t);
   const parts = [

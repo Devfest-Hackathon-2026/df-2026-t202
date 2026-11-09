@@ -211,7 +211,7 @@ def test_leg_transit_has_no_routing_preference(monkeypatch):
 
 
 def test_leg_transit_that_rides_nothing_is_no_route(monkeypatch):
-    # Osaka Castle -> Kuromon Market: Routes answered TRANSIT with a 59-minute walk and no line (D82)
+    # Osaka Castle -> Kuromon Market: Routes answered TRANSIT with a 59-minute walk and no line (D9)
     walk = {"routes": [{"duration": "3540s", "legs": [{"steps": [{}, {}]}]}]}
     fake_http(monkeypatch, routes, lambda r: httpx.Response(200, json=walk))
     assert asyncio.run(routes.leg((0, 0), (1, 1), "TRANSIT", "en")) is None

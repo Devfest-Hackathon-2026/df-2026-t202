@@ -96,7 +96,7 @@ def test_stale_cache_searches_again(world):
 
 
 def test_cache_from_the_old_way_of_picking_searches_again(world):
-    world["cache"][("videos", "p1")] = {"videoIds": ["old"], "fetchedAt": firestore.now()}  # no version: before D81
+    world["cache"][("videos", "p1")] = {"videoIds": ["old"], "fetchedAt": firestore.now()}  # no version: before D12
     assert asyncio.run(youtube.cached("p1")) is None
     assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ["v5", "v2"]
     assert world["cache"][("videos", "p1")]["v"] == youtube.CACHE_VERSION

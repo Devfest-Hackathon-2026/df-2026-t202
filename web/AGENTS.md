@@ -2,7 +2,7 @@
 
 Adds to the root `AGENTS.md`. Spec: PLAN.md section 10. **Next.js 16** (App Router), **React 19**, TypeScript,
 **Tailwind CSS v4**, `@vis.gl/react-google-maps`, Firebase JS SDK. Node ≥ 22.12, npm 11.
-The framework changed from Angular on 2026-11-09 — see `docs/decisions.md` D70.
+The framework changed from Angular on 2026-11-09 — see `docs/decisions.md` D18.
 
 ## Layout
 
@@ -26,7 +26,7 @@ apphosting.yaml             App Hosting env (BUILD availability)
 ```
 
 Deploy: `firebase deploy --only apphosting` from the repo root (the backend is not linked to GitHub). The public link
-is `https://tripi.web.app` (Firebase Hosting rewrite to the App Hosting service, D77, D85); `https://kyucat-trip.web.app` still works.
+is `https://tripi.web.app` (Firebase Hosting rewrite to the App Hosting service); `https://kyucat-trip.web.app` still works.
 
 ## React rules
 
@@ -56,7 +56,7 @@ is `https://tripi.web.app` (Firebase Hosting rewrite to the App Hosting service,
 - **No hard-coded UI text.** `t('key')` from `useT()` everywhere. Add every key to **both** `en.json` and `ja.json`.
 - Use the token utilities from `@theme`. No hard-coded colors.
 - Badges: "Estimate" on costs and estimated legs, "Please check" on times, hours, ferries, flights.
-- Planning progress from `trips.progress`: "Planning your days → Calculating travel times → Finding videos", with a "Usually 30–60 seconds" hint; the bar eases within the current stage (D83).
+- Planning progress from `trips.progress`: "Planning your days → Calculating travel times → Finding videos", with a "Usually 30–60 seconds" hint; the bar eases within the current stage (D6).
 - Every async view has loading, empty and error states. Tap targets ≥ 44 px. Keyboard and screen-reader labels on cards.
 
 ## Local dev

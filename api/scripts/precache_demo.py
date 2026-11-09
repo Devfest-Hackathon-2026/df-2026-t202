@@ -5,7 +5,7 @@ then fills cache_videos in Firestore with real YouTube results for every stop. N
 Pre-caching real API results is allowed; it saves the YouTube quota (about 100 searches a day) for the recording.
 
 Run from api/ with gcloud ADC and api/.env set (costs Gemini calls and up to ~15 YouTube searches per run):
-    .venv/bin/python scripts/precache_demo.py            # 2 runs (docs/decisions.md P28)
+    .venv/bin/python scripts/precache_demo.py            # 2 runs
     .venv/bin/python scripts/precache_demo.py --runs 3
 """
 

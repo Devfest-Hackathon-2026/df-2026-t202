@@ -1,7 +1,7 @@
 """Plan endpoints. PLAN.md 9.1 / 9.3.
 
 POST /trips/{trip_id}/plan runs the plan pipeline and returns {"planId"}. The request stays open until the plan
-is saved (it can take more than 30 s, D44); the front end shows trips.progress meanwhile.
+is saved (it can take more than 30 s, D4); the front end shows trips.progress meanwhile.
 """
 
 import httpx
@@ -18,12 +18,12 @@ router = APIRouter()
 
 @router.post("/trips/{trip_id}/plan")
 async def create_plan(trip_id: str, uid: User) -> dict[str, str]:
-    # Owner only: shared links are view only (D41).
+    # Owner only: shared links are view only.
     trip = await require_owner(trip_id, uid)
     if trip.get("asking") != "ready":
-        raise HTTPException(status.HTTP_409_CONFLICT, "chat_not_finished")  # D48
+        raise HTTPException(status.HTTP_409_CONFLICT, "chat_not_finished")
 
-    await pipeline.claim(trip_id)  # 409 plan_already_running on a double tap (D48)
+    await pipeline.claim(trip_id)  # 409 plan_already_running on a double tap
     try:
         await check_plan_limit(uid)  # 429 after 20 plans a day
     except HTTPException:

@@ -1,9 +1,9 @@
 """Planner agent. PLAN.md 9.2 / 9.3 step 2.
 
 slots + full chat -> draft Plan with Gemini (GEMINI_MODEL_PLANNER) and prompts/planner.md. No grounding tools and the
-model's default thinking level for the draft: plan quality over speed (docs/decisions.md P16–P18). Repair
+model's default thinking level for the draft: plan quality over speed. Repair
 rounds only edit a few stops: LOW thinking, a shorter timeout, and the model returns only the days it changed
-(`PlanFix`, D83), because writing out the whole plan again was most of a repair's ~30 s.
+(`PlanFix`, D6), because writing out the whole plan again was most of a repair's ~30 s.
 Outputs are validated by llm.generate_json (one retry on invalid JSON, then llm.LLMError).
 """
 
@@ -85,7 +85,7 @@ def _clean(plan: Plan, lang: str) -> Plan:
 def _clean_day(day: Day) -> None:
     """Fields the pipeline fills: never trust the model's values."""
     for i, stop in enumerate(day.stops):
-        stop.placeId = None  # filled from Places by the pipeline; lat/lng stay as a rough guess (D50)
+        stop.placeId = None  # filled from Places by the pipeline; lat/lng stay as a rough guess (D8)
         stop.videoIds = []
         stop.warn = None
         if stop.leg:

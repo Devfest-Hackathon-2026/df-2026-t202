@@ -3,11 +3,11 @@
 1. claim the trip (status "planning")         2. planner.draft
 3. verify stops with Places                    4. progress "routes": real legs from Routes (found stops only)
 5. re-time each day                            6. warnings: long driving, closed on arrival, past midnight
-7. any stop not found, >= 3 warnings or any "closed" -> ONE planner.fix with all of them (D83), then redo 3-6 for
+7. any stop not found, >= 3 warnings or any "closed" -> ONE planner.fix with all of them (D6), then redo 3-6 for
    the changed stops; a stop still not found is dropped with a note
 8. progress "videos": YouTube Shorts         9. cost check, save_plan -> planId
 On any error (or a cancelled request): status "error", then re-raise (the router turns it into an HTTP error).
-Plan quality comes before speed (D44); every API call inside a step runs in parallel. Repair rounds only start in the
+Plan quality comes before speed (D4); every API call inside a step runs in parallel. Repair rounds only start in the
 first FIX_BEFORE_S seconds, so draft + repair + APIs stay under the Cloud Run request timeout (300 s).
 """
 
@@ -38,10 +38,10 @@ WALK_UNDER_KM = 1.0  # short hops are walks
 TRANSIT_WALK_KM = 2.0  # no transit route (Routes has no transit data for Japan): walk if it is this close
 MAX_WALK_MINUTES = 30  # a longer walk becomes a ride (a 3-hour "walk" between two towns is not a plan)
 DAY_END = 23 * 60 + 55  # re-timed stops stay on the same day
-MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D50)
+MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D8)
 STALE_PLANNING = timedelta(minutes=10)  # a "planning" status older than this is a crashed run, not a running one
-YOUTUBE_PARALLEL = 4  # more at once and YouTube answers 429 "too many requests" (D57)
-NO_VIDEO_KINDS = {"start", "end", "transport"}  # stations, ports, rental cars: weak videos (D52)
+YOUTUBE_PARALLEL = 4  # more at once and YouTube answers 429 "too many requests" (D11)
+NO_VIDEO_KINDS = {"start", "end", "transport"}  # stations, ports, rental cars: weak videos
 NO_VIDEO_TYPES = {  # Places types with weak Shorts: hotels, stations, rental cars
     "lodging", "hotel", "japanese_inn", "hostel", "resort_hotel", "motel", "bed_and_breakfast", "train_station",
     "transit_station", "subway_station", "bus_station", "light_rail_station", "airport", "ferry_terminal",
@@ -134,12 +134,12 @@ async def _find(stop: Stop, run: Run) -> dict | None:
     if not found:
         return None
     if run.country and found.get("countryCode") and found["countryCode"] != run.country:
-        return None  # same name in another country: a wrong match (D49)
+        return None  # same name in another country: a wrong match (D8)
     if guess and found.get("lat") is not None and km_between(guess, (found["lat"], found["lng"])) > MAX_FROM_GUESS_KM:
-        return None  # same name, wrong town (D50)
+        return None  # same name, wrong town (D8)
     types = set(found.get("types") or [])
     if types & AREA_TYPES and not types & PLACE_TYPES:
-        return None  # a whole city or region, not a place to visit (D56)
+        return None  # a whole city or region, not a place to visit (D8)
     if stop.kind in NOT_LODGING_KINDS and _main_types(found) & LODGING_TYPES:
         run.lodging.add(stop.id)  # a ryokan as lunch: ask the Planner for a real restaurant
         return None
@@ -162,7 +162,7 @@ async def _verify_stop(stop: Stop, run: Run) -> bool:
         return False
     stop.placeId, stop.lat, stop.lng = found["placeId"], found["lat"], found["lng"]
     # Official name in the trip language, except: keep Gemini's English name over a local-script one, keep the
-    # start/end names (Google may call the pickup branch "... Car Return") (D55), and keep Gemini's name over an
+    # start/end names (Google may call the pickup branch "... Car Return"), and keep Gemini's name over an
     # SEO-padded one ("Sapporo's Secret Onsen Sanctuary Marukoma Onsen Ryokan").
     google = found["name"]
     if (
@@ -229,12 +229,12 @@ async def _leg(a: Stop, b: Stop, run: Run) -> None:
     if real:
         a.leg = Leg(mode=mode, minutes=real["minutes"], polyline=real["polyline"], line=real.get("line") or line)
     else:
-        a.leg = Leg(mode=mode, minutes=leg.minutes, estimate=True, line=line)  # keep the Planner's guess (D38)
+        a.leg = Leg(mode=mode, minutes=leg.minutes, estimate=True, line=line)  # keep the Planner's guess (D9)
 
 
 async def _ride_instead(a: Stop, b: Stop, leg: Leg, run: Run) -> None:
     """Too far to walk: ride in the trip's mode. With no transit data (Japan), use the Planner's train time when it
-    planned a train (D82), else time the ride by car; either way mark it as an estimate."""
+    planned a train (D9), else time the ride by car; either way mark it as an estimate."""
     mode = "DRIVE" if run.default_mode == "WALK" else run.default_mode
     line = leg.line if leg.mode == mode == "TRANSIT" else None
     real = await _route(a, b, mode, run)
@@ -242,7 +242,7 @@ async def _ride_instead(a: Stop, b: Stop, leg: Leg, run: Run) -> None:
         a.leg = Leg(mode=mode, minutes=real["minutes"], polyline=real["polyline"], line=real.get("line") or line)
         return
     if leg.mode == mode == "TRANSIT":
-        a.leg = Leg(mode=mode, minutes=leg.minutes, estimate=True, line=line)  # the Planner's train guess (D38)
+        a.leg = Leg(mode=mode, minutes=leg.minutes, estimate=True, line=line)  # the Planner's train guess (D9)
         return
     by_car = await _route(a, b, "DRIVE", run) if mode != "DRIVE" else None
     minutes = by_car["minutes"] + 10 if by_car else 30  # a train or bus is about a car ride plus waiting
@@ -285,7 +285,7 @@ def retime(plan: Plan) -> None:
     """Keep each day's first time; next = previous + stay + travel, rounded up to 5 minutes.
 
     A night view or a meal never moves earlier than the Planner's time (Gemini schedules night views after sunset and
-    meals at meal times): when we'd arrive early, the stop before gets the extra time (D54).
+    meals at meal times): when we'd arrive early, the stop before gets the extra time.
     """
     for day in plan.days:
         t = _round5(_minutes(day.stops[0].time))
@@ -439,7 +439,7 @@ async def run(trip_id: str) -> str:
         missing = await verify(plan, r)
         stage["spots"] = time.perf_counter() - started
 
-        # One repair round for everything at once (D83): unfound stops, and the warnings of the plan without them.
+        # One repair round for everything at once (D6): unfound stops, and the warnings of the plan without them.
         await fs.update_trip(trip_id, {"progress": "routes"})
         warnings, closed = await _check(_without(plan, missing), r)
         if (missing or len(warnings) >= FIX_AT_WARNINGS or closed) and time.perf_counter() - started < FIX_BEFORE_S:

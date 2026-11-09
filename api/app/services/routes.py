@@ -85,7 +85,7 @@ async def leg(a: tuple[float, float], b: tuple[float, float], mode: str, lang: s
     line = transit_line(r) if mode == "TRANSIT" else None
     if mode == "TRANSIT" and not line:
         # A "transit" route that rides nothing is a walk (Routes answers this way where it has no transit data, as in
-        # Japan). Labelled with the Planner's line, it showed a 59-minute walk as a metro ride (D82): say "no route".
+        # Japan). Labelled with the Planner's line, it showed a 59-minute walk as a metro ride (D9): say "no route".
         log.info(json.dumps({"event": "routes_transit_walk_only", "minutes": duration_minutes(r["duration"])}))
         return None
     return {

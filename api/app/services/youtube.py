@@ -7,9 +7,9 @@ local name searches with regionCode=destination. Both sets are kept.
 Only videos whose title names the spot are kept (a search for
 a ramen shop can return an unrelated clip). At most 4 searches run at once (pipeline). Once the daily quota is used up
 (quotaExceeded), we stop searching until it resets; a short burst limit (rateLimitExceeded) only skips that stop.
-One videos.list call (1 unit) then drops "Made for Kids" videos (YouTube policy III.E.4.j; docs/decisions.md P27)
+One videos.list call (1 unit) then drops "Made for Kids" videos (YouTube policy III.E.4.j)
 and ranks the rest: travel videos first (a travel word or hashtag in the title, description or tags, e.g.
-#japantravel, #旅行, 観光), then the trip-language search, then the most views (D81). Videos without a travel sign are
+#japantravel, #旅行, 観光), then the trip-language search, then the most views (D12). Videos without a travel sign are
 kept, ranked last.
 
 Videos are optional: on any failure (quota used up, no key) we return [] and the front end shows its fallback.
@@ -34,7 +34,7 @@ SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 CACHE_FOR = timedelta(days=7)
 CACHE_EMPTY_FOR = timedelta(days=1)  # "no videos" may change soon (new uploads, a better name next run)
-CACHE_VERSION = 2  # bump to re-search every place when the way we pick videos changes (2: travel ranking, D81)
+CACHE_VERSION = 2  # bump to re-search every place when the way we pick videos changes (2: travel ranking, D12)
 MAX_VIDEOS = 3
 SEARCH_RESULTS = 10  # a search costs 100 quota units whatever maxResults is, so take more to rank
 # A travel sign in a video's title, description or tags; matched in lower case, so "#OsakaTravel" counts.
@@ -43,7 +43,7 @@ TRAVEL_WORDS = ("travel", "trip", "vlog", "sightseeing", "touris", "things to do
 QUOTA_REASONS = {"quotaExceeded", "dailyLimitExceeded"}  # the daily quota; rateLimitExceeded is a short burst limit
 QUOTA_RESETS_IN = ZoneInfo("America/Los_Angeles")  # YouTube's daily quota resets at midnight Pacific time
 
-_quota_out_until: datetime | None = None  # set when YouTube says the daily quota is used up (D57)
+_quota_out_until: datetime | None = None  # set when YouTube says the daily quota is used up (D11)
 
 _client = httpx.AsyncClient(timeout=5.0)  # videos are optional: don't let a slow call hold up the plan
 log = logging.getLogger(__name__)

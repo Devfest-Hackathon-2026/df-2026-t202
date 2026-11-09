@@ -483,7 +483,7 @@ def test_missing_place_and_closed_stop_share_one_repair_call(monkeypatch):
     monkeypatch.setattr(planner, "draft", draft)
     asyncio.run(pipeline.run("t1"))
 
-    assert len(log["fix"]) == 1  # one Gemini repair, not one per problem (D83)
+    assert len(log["fix"]) == 1  # one Gemini repair, not one per problem (D6)
     asks = log["fix"][0]
     assert any("Fake Cafe" in a for a in asks) and any("closed" in a for a in asks)
     seen = [s.name for s in log["fix_seen"].days[0].stops]
