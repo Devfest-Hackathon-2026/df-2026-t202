@@ -122,41 +122,41 @@ Tripi は、この 2 つの問題を同時に解きます。**AI の発想力で
 ## アーキテクチャ
 
 ```mermaid
-flowchart LR
-    U(("ユーザー<br/>スマホ / PC"))
+flowchart TB
+    U(("ユーザー"))
 
-    subgraph FE["フロントエンド"]
+    subgraph FE["Web"]
         H["Firebase Hosting<br/>tripi.web.app"]
-        W["Next.js 16 · React 19<br/>Firebase App Hosting"]
+        W["Next.js 16<br/>App Hosting"]
     end
 
-    subgraph BR["ブラウザで直接使う Google サービス"]
-        AU["Firebase Authentication<br/>+ App Check"]
-        MJ["Maps JavaScript API"]
-        YP["YouTube 埋め込みプレイヤー"]
+    subgraph BR["ブラウザ"]
+        AU["Firebase Auth<br/>App Check"]
+        MJ["Maps<br/>JavaScript API"]
+        YP["YouTube<br/>Player"]
     end
 
-    subgraph BE["Cloud Run · asia-northeast1"]
-        API["Tripi API<br/>Python 3.12 · FastAPI"]
+    subgraph BE["Cloud Run"]
+        API["Tripi API<br/>FastAPI"]
     end
 
-    subgraph AI["AI と実データ"]
-        G["Vertex AI<br/>Gemini 3.5 Flash"]
-        PL["Places API (New)"]
+    subgraph EXT["Google API"]
+        G["Gemini<br/>Vertex AI"]
+        PL["Places API"]
         RT["Routes API"]
-        YT["YouTube Data API v3"]
+        YT["YouTube<br/>Data API"]
     end
 
-    DB[("Cloud Firestore")]
-    SM["Secret Manager"]
+    DB[("Firestore")]
+    SM["Secret<br/>Manager"]
 
     U --> H --> W
     W --> AU
     W --> MJ
     W --> YP
-    W -- "HTTPS<br/>ID トークン + App Check" --> API
-    DB -. "リアルタイム同期<br/>（読み取りのみ）" .-> W
-    API -- "書き込み<br/>（Admin SDK）" --> DB
+    W -- "ID トークン<br/>App Check" --> API
+    DB -. "リアルタイム<br/>読み取り" .-> W
+    API -- "書き込み" --> DB
     API --> G
     API --> PL
     API --> RT
@@ -171,17 +171,27 @@ flowchart LR
 ### プラン生成パイプライン
 
 ```mermaid
-flowchart TD
-    A["① 下書き<br/>Gemini が条件とチャットから日ごとのプランを作成"] --> B["② 実在確認<br/>Places API で全スポットを並列検索"]
-    B --> C["③ 移動時間<br/>Routes API で全区間を並列計算し、時刻を組み直す"]
-    C --> D{"④ チェック<br/>見つからない・閉まっている<br/>長距離運転・深夜0時超え"}
-    D -- "問題あり（最大 1 回）" --> E["⑤ 修正<br/>Gemini が変更した日だけを返す"]
+flowchart LR
+    A["① 下書き<br/>Gemini"] --> B["② 実在確認<br/>Places API"]
+    B --> C["③ 移動時間<br/>Routes API"]
+    C --> D{"④ チェック"}
+    D -- "問題あり<br/>最大 1 回" --> E["⑤ 修正<br/>Gemini"]
     E --> B
-    D -- "問題なし" --> F["⑥ 動画<br/>スポットごとの YouTube ショート"]
-    F --> G["⑦ 保存<br/>Firestore → 画面にリアルタイム反映"]
+    D -- "OK" --> F["⑥ 動画<br/>YouTube"]
+    F --> S[("⑦ 保存<br/>Firestore")]
 ```
 
-AI の出力はすべて Pydantic モデルで検証し、形式が崩れていれば 1 回だけ再試行します。修正後は変わったスポットだけを再検証します（Places・Routes の結果はキャッシュ）。
+| ステップ | 内容 |
+| --- | --- |
+| ① 下書き | Gemini が条件とチャット全文から、日ごとのスポット・時刻・移動手段・費用の幅を作る（約 30 秒） |
+| ② 実在確認 | 全スポットを並列に検索。別の国・遠すぎる同名スポット・都市名だけのものは不採用 |
+| ③ 移動時間 | 全区間を並列に計算し、実際の所要時間で 1 日の時刻を組み直す |
+| ④ チェック | 見つからないスポット・到着時に閉まっている・5 時間超の運転・深夜 0 時超えを検出 |
+| ⑤ 修正 | 問題をまとめて 1 回で渡し、変更した日だけを返させる。変わったスポットだけを再検証 |
+| ⑥ 動画 | スポットごとに旅行系のショートを選ぶ（キャッシュ済みなら API を呼ばない） |
+| ⑦ 保存 | Firestore に保存し、画面にリアルタイムで反映 |
+
+AI の出力はすべて Pydantic モデルで検証し、形式が崩れていれば 1 回だけ再試行します。
 
 ## セキュリティ・スケーラビリティ・保守性
 
