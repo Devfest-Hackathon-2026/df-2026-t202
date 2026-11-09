@@ -1,56 +1,79 @@
-# web/: Angular app (Firebase App Hosting)
+# web/: Next.js app (Firebase App Hosting)
 
-Adds to the root `AGENTS.md`. Spec: PLAN.md section 10. Angular **21** (standalone components, Signals, zoneless),
-Angular Material 21, `@angular/google-maps`, AngularFire 21, Transloco. Node ≥ 22.12, npm 11.
+Adds to the root `AGENTS.md`. Spec: PLAN.md section 10. **Next.js 16** (App Router), **React 19**, TypeScript,
+**Tailwind CSS v4**, `@vis.gl/react-google-maps`, Firebase JS SDK. Node ≥ 22.12, npm 11.
+The framework changed from Angular on 2026-11-09 — see `docs/decisions.md` D70.
 
 ## Layout (✅ exists, ⬜ to build)
+
 ```
-src/app/app.config.ts      ✅ Router, HttpClient, Firebase (Auth, Firestore, App Check if a site key is set), Transloco
-src/app/app.routes.ts      ✅ / (S7), /trips/:tripId (S1+S2), /trips/:tripId/plan (S3–S5), /s/:shareId (S6)
-src/app/core/env.ts        ✅ build-time config (generated from web/.env or apphosting.yaml by scripts/write-env.mjs)
-src/app/core/api.service.ts ✅ post<T>(path, body): the only way to call the API (adds ID token + App Check token)
-src/app/core/language.service.ts ✅ en/ja signal, localStorage, reload on change
-src/app/core/              ⬜ auth service (Google + anonymous sign-in), trip/messages/plan Firestore services (signals)
-src/app/home/              ⬜ S7 My trips          (placeholder page exists)
-src/app/chat/ + cards/     ⬜ S1 chat, S2 slots panel, the 8 cards
-src/app/plan/              ⬜ S3 trip page, map, timeline, S4 Shorts viewer, S5 share sheet
-src/app/share/             ⬜ S6 shared page (anonymous auth, read-only)
-public/i18n/en.json, ja.json ✅ UI text (served at /i18n/*.json). Keys must match (src/app/i18n.spec.ts)
+app/layout.tsx             ✅ language from the cookie, Noto Sans JP, I18nProvider
+app/globals.css            ✅ Tailwind import, @theme tokens (--color-ink, --color-accent, --color-day-1..7), glass classes
+app/page.tsx               ✅ S7 My trips          (placeholder: title + language switch)
+app/trips/[tripId]/page.tsx       ⬜ S1 chat + S2 slots panel   (placeholder)
+app/trips/[tripId]/plan/page.tsx  ⬜ S3-S5 trip page, map, Shorts viewer, share sheet (placeholder)
+app/s/[shareId]/page.tsx          ⬜ S6 shared page, read-only, anonymous auth (placeholder)
+components/language-switch.tsx ✅ en/ja toggle
+components/                ⬜ cards, map, timeline, Shorts viewer
+lib/env.ts                 ✅ NEXT_PUBLIC_* build-time config
+lib/firebase.ts            ✅ app/auth/firestore singletons, emulators, App Check when a site key is set
+lib/api.ts                 ✅ post<T>(path, body): the only way to call the API (adds ID token + App Check token)
+lib/i18n.tsx               ✅ I18nProvider, useT(), useLanguage(), setLanguage()
+lib/language.ts            ✅ cookie name, header fallback
+lib/                       ⬜ auth helpers (Google + anonymous), trip/messages/plan Firestore hooks
+public/i18n/en.json, ja.json ✅ UI text. Keys must match (tests/i18n.test.ts)
 apphosting.yaml            ✅ App Hosting env (BUILD availability); REPLACE-* values set by INF
 ```
 
-## Angular rules
-- Standalone components, `ChangeDetectionStrategy.OnPush`, `inject()` instead of constructor injection.
-- State = **Signals**. Firestore listeners (`onSnapshot`/AngularFire `docData`/`collectionData`) feed signals; use `toSignal`
-  or `effect` cleanup. Temporary card state stays inside the card component.
-- New control flow (`@if`, `@for` with `track`), `input()`/`output()` functions, `computed()` for derived values.
-- One feature per folder (home/chat/plan/share). Shared pieces go in `core/` (services) or a `shared/` folder (UI).
-- Use Angular Material components before writing custom ones. Check the version-21 APIs; don't rely on memory of older versions.
+## React rules
+
+- Server Components by default; add `'use client'` only where you need state, effects or Firebase.
+- `lib/firebase.ts` and `lib/api.ts` are client-only. Never import them from a Server Component.
+- Route params are a Promise in Next 16: `const { tripId } = use(params)` in a Client Component.
+- State = `useState` / `useReducer` fed by Firestore listeners in `useEffect`; always return the unsubscribe.
+- One feature per folder. Shared pieces go in `components/`; services and clients go in `lib/`.
+- Icons come from `lucide-react` (`<MapPin size={16} />`). Don't hand-write SVG paths; the Google "G" on the sign-in button is the one exception, because their branding requires it.
+- No component library. Style with Tailwind utilities; tokens come from `@theme` in `app/globals.css` (`bg-ink`, `text-muted`, `border-line`, `bg-accent`). `desk:` is the 900 px desktop breakpoint.
+- One glass recipe everywhere: `border border-white/15 bg-stone-900/50 backdrop-blur-2xl` on panels over a photo or the map (the start-screen prompt sets it), `.frost` for small light chips over the map. `.frost` (over the map) and `.sheet-glass` (the panel) are light, because they carry ink-coloured text; panels on the start photo use the same numbers in dark (`bg-stone-900/50 backdrop-blur-2xl border-white/15`) because their text is white. `.frost`, `.sheet-glass` and `.noscroll` are `@layer components` classes in `app/globals.css`. Day colors are inline `style` because they are data, not a fixed class.
 
 ## Data rules (PLAN.md 5 and 11)
+
 - **Read from Firestore, write through the API.** Clients can't write trips, messages, plans or shares (`firestore.rules`).
   Only `users/{uid}` (displayName, photoURL, language, createdAt) is written by the client.
 - "My trips" query: `where(\`members.${uid}\`, 'in', ['owner', 'viewer'])`, sorted on the client (matches the read rule).
 - The current card is the `ui` field of the last AI message. Card answers are sent as structured data:
-  `api.post('/trips/{id}/messages', { type: 'answer', step, value })`. Free text: `{ type: 'text', text }`.
+  `post('/trips/{id}/messages', { type: 'answer', step, value })`. Free text: `{ type: 'text', text }`.
 - Shapes are PLAN.md 7 (TypeScript interfaces mirror `api/app/models.py`; keep the names identical).
 - The Maps JS key comes from `env.mapsBrowserKey`. Load the Maps script with `language` = UI language. After a language change, the page reloads.
 - YouTube: the official IFrame Player only (API terms). Fallback: "Search on YouTube" link + Places photo.
 
 ## UI rules (PLAN.md 10.4)
+
 - **Phone first** (390 px), especially the trip page and the shared page. PC: chat left + slots panel right.
-- **No hard-coded UI text.** `{{ 'key' | transloco }}` everywhere. Add every key to **both** `en.json` and `ja.json`.
-- Use the CSS variables in `src/styles.scss` (`--color-coral`, `--color-sky`, `--day-1..7`, glass tokens). No hard-coded colors.
+- **No hard-coded UI text.** `t('key')` from `useT()` everywhere. Add every key to **both** `en.json` and `ja.json`.
+- Use the token utilities from `@theme`. No hard-coded colors.
 - Badges: "Estimate" on costs and estimated legs, "Please check" on times, hours, ferries, flights.
 - Planning progress from `trips.progress`: "Finding spots → Calculating travel times → Finding videos".
 - Every async view has loading, empty and error states. Tap targets ≥ 44 px. Keyboard and screen-reader labels on cards.
 
 ## Local dev
+
 ```bash
-cp .env.example .env     # USE_EMULATORS=true for the emulators; never commit .env
-npm install && npm start # http://localhost:4200
+cp .env.example .env.local   # NEXT_PUBLIC_USE_EMULATORS=true for the emulators; never commit it
+npm install && npm run dev   # http://localhost:4200  (npm start is the PRODUCTION server)
 ```
-`npm start`, `npm run build` and `npm test` first run `scripts/write-env.mjs`, which writes `src/environments/env.generated.ts` (git-ignored).
 
 ## Test
-`npm run build && npm test` (Vitest through `ng test`). Before merging UI work, click through the flow at 390 px in both languages.
+
+`npm run build && npm test` (Vitest). `npm run build` also type-checks. Before merging UI work, click through the
+flow at 390 px in both languages.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

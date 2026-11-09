@@ -1,45 +1,35 @@
 {
   "name": "trip-planner-web",
   "version": "0.0.0",
-  "scripts": {
-    "env": "node scripts/write-env.mjs",
-    "prestart": "node scripts/write-env.mjs",
-    "start": "ng serve",
-    "prebuild": "node scripts/write-env.mjs",
-    "build": "ng build",
-    "watch": "ng build --watch --configuration development",
-    "pretest": "node scripts/write-env.mjs",
-    "test": "ng test --watch=false",
-    "ng": "ng"
-  },
   "private": true,
-  "packageManager": "npm@11.13.0",
+  "scripts": {
+    "dev": "next dev -p 4200",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "format": "prettier --write ."
+  },
   "dependencies": {
-    "@angular/cdk": "^21.2.14",
-    "@angular/common": "^21.2.0",
-    "@angular/compiler": "^21.2.0",
-    "@angular/core": "^21.2.0",
-    "@angular/fire": "^21.0.0",
-    "@angular/forms": "^21.2.0",
-    "@angular/google-maps": "^21.2.14",
-    "@angular/material": "^21.2.14",
-    "@angular/platform-browser": "^21.2.0",
-    "@angular/router": "^21.2.0",
-    "@jsverse/transloco": "^8.4.0",
+    "@vis.gl/react-google-maps": "^1.10.2",
     "firebase": "^13.2.0",
-    "rxjs": "~7.8.0",
-    "tslib": "^2.3.0"
+    "lucide-react": "^1.70.0",
+    "next": "^16.4.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.29",
-    "@angular/cli": "^21.2.29",
-    "@angular/compiler-cli": "^21.2.0",
-    "jsdom": "^28.0.0",
+    "@tailwindcss/postcss": "^4.3.5",
+    "@types/google.maps": "^3.66.10",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "prettier": "^3.8.1",
+    "tailwindcss": "^4.3.5",
     "typescript": "~5.9.2",
     "vitest": "^4.0.8"
   },
+  "packageManager": "npm@11.13.0",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12"
   }
 }

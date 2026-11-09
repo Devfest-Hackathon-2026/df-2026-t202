@@ -1,20 +1,20 @@
 # Attribution and licenses
 
 Source for the required attribution and licensing sheet (著作物利用シート). Add a row for every library, font, data
-source or asset we use (PLAN.md 15). Versions as installed on 2026-11-08. Check each license at the source before submission.
+source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check each license at the source before submission.
 
-## Libraries: web (Angular)
+## Libraries: web (Next.js)
 | Name | Version | License |
 | --- | --- | --- |
-| Angular (core, router, forms, ...) | 21.2 | MIT |
-| Angular Material / CDK | 21.2.14 | MIT |
-| @angular/google-maps | 21.2.14 | MIT |
-| AngularFire (@angular/fire) | 21.0.0 | MIT |
+| Next.js | 16.4.5 | MIT |
+| Tailwind CSS | 4.3.5 | MIT |
+| lucide-react (icons) | 1.70.0 | ISC |
+| React / React DOM | 19.3.1 | MIT |
+| @vis.gl/react-google-maps | 1.10.2 | Apache-2.0 |
 | Firebase JS SDK | 13.2.0 | Apache-2.0 |
-| Transloco (@jsverse/transloco) | 8.4.0 | MIT |
-| RxJS | 7.8.2 | Apache-2.0 |
 | TypeScript (dev) | 5.9.3 | Apache-2.0 |
 | Vitest (dev) | 4.1.12 | MIT |
+| Prettier (dev) | 3.9.10 | MIT |
 
 ## Libraries: api (Python)
 | Name | Version | License |
@@ -37,5 +37,5 @@ source or asset we use (PLAN.md 15). Versions as installed on 2026-11-08. Check 
 | Google Maps / Places / Routes data and photos | Data | Google Maps Platform Terms of Service (show attribution) |
 | YouTube videos | Content | YouTube API Services Terms (official embedded player only) |
 | Gemini (Vertex AI) | Service | Google Cloud Terms of Service |
-| Background photo | Image | TBD: record source and license |
+| Start-screen image `web/public/dusk.webp` | Image | **TBD — ask the team where it came from.** Supplied by a team member as "Serene Island Sunset.png". Record the photographer or the generating tool, and the licence, before submission. |
 | Google Cloud architecture icons | Image | Google (cloud.google.com/icons) |

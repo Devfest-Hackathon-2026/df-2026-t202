@@ -1,28 +1,29 @@
 # Firebase App Hosting config for web/ (set the backend root directory to "web").
-# Values are injected at build time by scripts/write-env.mjs. Secrets are referenced by name only.
+# Next.js has preconfigured build and deploy support. NEXT_PUBLIC_* values are inlined at build time
+# and are public by design. Secrets are referenced by name only.
 runConfig:
   minInstances: 0
   maxInstances: 4
 
 env:
-  - variable: FIREBASE_API_KEY
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: firebase-web-api-key
     availability: [BUILD]
-  - variable: FIREBASE_AUTH_DOMAIN
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     value: REPLACE-PROJECT-ID.firebaseapp.com
     availability: [BUILD]
-  - variable: FIREBASE_PROJECT_ID
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     value: REPLACE-PROJECT-ID
     availability: [BUILD]
-  - variable: FIREBASE_APP_ID
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: REPLACE-APP-ID
     availability: [BUILD]
-  - variable: MAPS_BROWSER_KEY
+  - variable: NEXT_PUBLIC_MAPS_BROWSER_KEY
     secret: maps-browser-key
     availability: [BUILD]
-  - variable: API_BASE_URL
+  - variable: NEXT_PUBLIC_API_BASE_URL
     value: https://REPLACE-cloud-run-url
     availability: [BUILD]
-  - variable: RECAPTCHA_SITE_KEY
+  - variable: NEXT_PUBLIC_RECAPTCHA_SITE_KEY
     value: REPLACE-recaptcha-site-key
     availability: [BUILD]

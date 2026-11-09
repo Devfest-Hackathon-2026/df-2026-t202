@@ -1,12 +1,269 @@
 {
-  "app": { "name": "AI Trip Planner" },
-  "home": { "title": "マイ旅行", "newTrip": "新しい旅行" },
-  "chat": { "title": "旅行を計画する", "notDecided": "まだ決めていない", "send": "送信" },
-  "plan": {
-    "title": "旅行プラン",
-    "progress": { "spots": "スポットを探しています", "routes": "移動時間を計算しています", "videos": "動画を探しています", "done": "完了" },
-    "badge": { "estimate": "概算", "pleaseCheck": "要確認" }
+  "app": {
+    "name": "AI Trip Planner"
   },
-  "share": { "title": "共有された旅行" },
-  "language": { "en": "English", "ja": "日本語" }
+  "home": {
+    "title": "マイ旅行",
+    "newTrip": "新しい旅行",
+    "empty": "まだ旅行がありません。新しく作ってみましょう。",
+    "prompt": "どこに行きたい？",
+    "promptPlaceholder": "自由に書いてください",
+    "suggestion": {
+      "a": {
+        "label": "九州 3泊4日",
+        "send": "4人で九州を3泊4日、温泉と夜景"
+      },
+      "b": {
+        "label": "長崎の夜景",
+        "send": "週末に長崎で夜景"
+      },
+      "c": {
+        "label": "福岡グルメ",
+        "send": "福岡で屋台グルメ"
+      },
+      "d": {
+        "label": "おまかせ",
+        "send": "おまかせで考えて"
+      }
+    },
+    "feature": {
+      "plan": "チャットの質問カードに答えるだけ",
+      "real": "実在のスポットと実際の移動時間",
+      "share": "リンクで友だちに共有"
+    },
+    "fromMap": "地図から選ぶ",
+    "start": "トップに戻る"
+  },
+  "trip": {
+    "untitled": "新しい旅行",
+    "otherLanguage": "この旅行の文章は{lang}です"
+  },
+  "auth": {
+    "signInGoogle": "Google でログイン",
+    "signOut": "ログアウト",
+    "signInNeeded": "この旅行を計画するにはログインしてください。",
+    "account": "アカウント",
+    "signInGuest": "ゲストで試す（ローカル専用）",
+    "language": "言語",
+    "languageNote": "新しい旅行からこの言語になります。作成済みの旅行はそのままです。"
+  },
+  "state": {
+    "loading": "読み込んでいます…",
+    "empty": "まだメッセージはありません。",
+    "error": "この旅行を読み込めませんでした。",
+    "notFound": "この旅行は見つかりませんでした。",
+    "sendFailed": "送信できませんでした。もう一度お試しください。",
+    "working": "処理中…"
+  },
+  "status": {
+    "chatting": "条件を聞いています",
+    "planning": "プランを作っています",
+    "ready": "プランができました",
+    "error": "問題が起きました"
+  },
+  "sheet": {
+    "label": "アシスタントと旅程",
+    "tabs": "表示切替",
+    "chat": "チャット",
+    "plan": "旅程",
+    "expand": "シートを開く",
+    "collapse": "シートを閉じる"
+  },
+  "map": {
+    "noKey": "地図には NEXT_PUBLIC_MAPS_BROWSER_KEY が必要です。他の機能は使えます。"
+  },
+  "slot": {
+    "summary": "決まっていること",
+    "dest": "行き先",
+    "dates": "日程",
+    "people": "人数",
+    "budget": "予算",
+    "transport": "移動手段",
+    "prefs": "旅の好み",
+    "musts": "行きたい場所"
+  },
+  "card": {
+    "ok": "決定",
+    "add": "追加",
+    "skip": "おまかせ",
+    "generate": "プランを作る",
+    "dest": {
+      "label": "行き先",
+      "placeholder": "世界中どこでも",
+      "mapHint": "地図の地域をタップしてください",
+      "hint": "カードを選ぶか、上に入力してもOK",
+      "insideHint": "{area}のどこをまわりますか？"
+    },
+    "dates": {
+      "start": "出発日",
+      "end": "帰る日",
+      "nights": "{n}泊",
+      "thisWeekend": "今週末",
+      "nextWeekend": "来週末",
+      "nextMonthWeekend": "来月の週末",
+      "prevMonth": "前の月",
+      "nextMonth": "次の月",
+      "pickStart": "出発日を選択",
+      "pickEnd": "帰る日を選択",
+      "dayTrip": "日帰り"
+    },
+    "people": {
+      "adult": "大人",
+      "adultSub": "13歳以上",
+      "child": "子ども",
+      "childSub": "2〜12歳",
+      "infant": "乳幼児",
+      "infantSub": "2歳未満",
+      "decrease": "{what}を減らす",
+      "increase": "{what}を増やす"
+    },
+    "budget": {
+      "label": "予算",
+      "basis": "予算の単位",
+      "person": "1人あたり",
+      "total": "旅行全体",
+      "less": "予算を下げる",
+      "more": "予算を上げる"
+    },
+    "prefs": {
+      "label": "自分で入力する好み",
+      "placeholder": "自由に追加"
+    },
+    "musts": {
+      "label": "必ず行きたい場所",
+      "placeholder": "場所を追加"
+    },
+    "change": "変更",
+    "transport": {
+      "origin": "出発地　博多駅、福岡空港など"
+    },
+    "back": "戻る",
+    "editing": "{what}を選び直しています"
+  },
+  "transport": {
+    "shinkansen": "新幹線",
+    "train": "電車",
+    "plane": "飛行機",
+    "car": "レンタカー",
+    "bus": "バス",
+    "ferry": "フェリー",
+    "any": "おまかせ"
+  },
+  "pref": {
+    "onsen": "温泉",
+    "food": "グルメ",
+    "views": "絶景",
+    "history": "歴史・神社",
+    "walking": "街歩き",
+    "night_view": "夜景",
+    "nature": "自然",
+    "shopping": "買い物"
+  },
+  "chat": {
+    "title": "旅行を計画する",
+    "notDecided": "まだ決めていない",
+    "send": "送信",
+    "input": "メッセージ",
+    "inputPlaceholder": "自由に入力できます"
+  },
+  "plan": {
+    "title": "あなたの旅行",
+    "placeholder": "旅程はこれから実装します。",
+    "progress": {
+      "spots": "スポットを探しています…",
+      "routes": "移動時間を計算しています…",
+      "videos": "動画を探しています…",
+      "done": "完了"
+    },
+    "badge": {
+      "estimate": "概算",
+      "pleaseCheck": "要確認"
+    },
+    "none": "まだプランがありません。チャットを最後まで進めて作成してください。",
+    "days": "日程",
+    "allDays": "全日",
+    "day": "{n}日目",
+    "stats": "{stops}スポット · 移動 {minutes}",
+    "checks": "出発前に確認すること"
+  },
+  "share": {
+    "title": "共有された旅行",
+    "open": "共有",
+    "hint": "リンクを知っている人は閲覧できます。編集はできません。",
+    "create": "リンクを作る",
+    "copyLink": "リンクをコピー",
+    "copyText": "LINE 用のテキストをコピー",
+    "linkCopied": "リンクをコピーしました。",
+    "textCopied": "テキストをコピーしました。",
+    "viewOnly": "閲覧のみ",
+    "notFound": "このリンクは使えません。"
+  },
+  "language": {
+    "en": "English",
+    "ja": "日本語"
+  },
+  "action": {
+    "close": "閉じる",
+    "previous": "前へ",
+    "next": "次へ",
+    "openInMaps": "Google マップで開く",
+    "watchShort": "ショートを見る"
+  },
+  "cost": {
+    "person": "1人あたりの費用",
+    "total": "旅行全体の費用"
+  },
+  "time": {
+    "minutes": "{m}分",
+    "hours": "{h}時間",
+    "hoursMinutes": "{h}時間{m}分",
+    "min": "分"
+  },
+  "leg": {
+    "DRIVE": "車",
+    "TRANSIT": "電車・バス",
+    "WALK": "徒歩",
+    "FLIGHT": "飛行機",
+    "FERRY": "フェリー"
+  },
+  "shorts": {
+    "title": "ショート",
+    "play": "{name}のショートを見る",
+    "none": "このスポットの動画はありません。",
+    "searchOnYouTube": "YouTube で検索"
+  },
+  "dest": {
+    "kyushu": {
+      "name": "九州ぐるっと",
+      "sub": "7県をめぐる"
+    },
+    "fukuoka": {
+      "name": "福岡",
+      "sub": "屋台・糸島"
+    },
+    "nagasaki": {
+      "name": "長崎",
+      "sub": "夜景・中華街"
+    },
+    "kumamoto": {
+      "name": "熊本",
+      "sub": "阿蘇・熊本城"
+    },
+    "oita": {
+      "name": "大分",
+      "sub": "別府・湯布院"
+    },
+    "miyazaki": {
+      "name": "宮崎",
+      "sub": "高千穂・海"
+    },
+    "kagoshima": {
+      "name": "鹿児島",
+      "sub": "桜島・指宿"
+    },
+    "saga": {
+      "name": "佐賀",
+      "sub": "呼子・嬉野"
+    }
+  }
 }

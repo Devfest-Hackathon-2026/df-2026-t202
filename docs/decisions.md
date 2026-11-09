@@ -422,3 +422,37 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** `stay` names a real hotel or ryokan or an area. Meals at 11:30–13:30 and 18:00–20:00 at real restaurants, never moved earlier. Opening hours, sunset and pace rules in the prompt. In code: reversed cost ranges are swapped, single prices are widened ±10%, and a budget check is added when the max goes over the budget.
 - **Rejected:** Area-only stays. Trusting the model for cost (the plan had min = max and went over budget silently).
 - **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+
+### D70. Next.js instead of Angular for the front end
+- **Chosen:** Rebuild `web/` as a Next.js 16 App Router app (React 19). **Rejected:** Vite + React (App Hosting needs a static server such as `superstatic` and a hand-written `start` script, so the deploy path would be unproven on submission day); staying on Angular (nobody on the team writes Angular daily, and the remaining time is ~35 hours to feature freeze).
+- **Why:** PLAN.md 4 already listed Next.js as the fallback "if no team member knows Angular". App Hosting has preconfigured build and deploy support for Next.js and Angular only. The switch cost almost nothing: the Angular app was a 222-line skeleton with four placeholder pages and no web branch in flight. SSR also keeps the LINE preview (OGP) stretch item possible, which a Vite SPA cannot do.
+- **Carried over unchanged:** `public/i18n/{en,ja}.json`, the design tokens from `styles.scss` (now `app/globals.css`), the `apphosting.yaml` wiring, and the API contract.
+- **Also changed:** Transloco → `lib/i18n.tsx` (both JSON files bundled, language in a cookie so the server renders it); AngularFire → Firebase JS SDK; `@angular/google-maps` → `@vis.gl/react-google-maps`; `scripts/write-env.mjs` deleted in favour of `NEXT_PUBLIC_*`; dev command is now `npm run dev` (still port 4200), because `npm start` is the production server in Next.
+- **Open risk:** the App Hosting docs table lists Next.js "13.5.x and higher" but names 15.2.x as the latest active version. Next 16 should be fine ("versions outside these ranges might work"), and the team was already on Angular 21, which is likewise past its table. **INF should do one throwaway deploy early to confirm, and pin to 15.x if the build rejects 16.**
+- **Decided by:** Soma (proposed by Claude, with options and trade-offs) · 2026-11-09
+### D71. The trip is one screen: a full-screen map with a bottom sheet
+- **Chosen:** Follow the team's design mock (`App.dc.html` in the design canvas, marked "新デザイン"; the four other artboards there are marked 旧案 and are not the target). The map fills the screen; one sheet over it holds the assistant and the itinerary in two tabs, at three heights (peek / half / full). The place card and the Shorts viewer are overlays. **Rejected:** PLAN.md 10.1's original separate routes (`/trips/:id` for chat, `/trips/:id/plan` for the trip page).
+- **Why:** On a phone the map is the thing worth the whole screen, and moving between chat and itinerary should not be a page load — the plan is being discussed and edited at the same time. The mock is the team's design decision; this records it and syncs PLAN.md.
+- **Also decided:** the mock's tokens replace PLAN.md 10.4's palette — ink #222222, accent #D9443B, day colors #D9443B/#2563EB/#059669/#B45309, Inter + Noto Sans JP. Days 5–7 were added in the same spirit (#7C3AED, #DB2777, #0F766E) because a trip can run longer than the mock's four days.
+- **Kept out of the MVP:** the mock's share sheet shows a member list and edit/view permissions. Those are F7 (stretch); the MVP ships F5, a view-only link.
+- **Still to reconcile:** the mock's copy is Japanese only and its destination and must-see chips are Kyushu only. Every string goes into `en.json`/`ja.json` as it is built, and the destination card keeps free text + Places for worldwide trips (PLAN.md 1).
+- **Decided by:** Soma · 2026-11-09
+### D72. Desktop is the same components, moved by CSS
+- **Chosen:** One component tree for both. At `min-width: 900px` the bottom sheet becomes a 440 px column on the left (drag handle hidden, full height), the trip name and share button move into that column's header, the day tabs float over the map at the top right, and the place card and the Shorts viewer become panels beside the column. **Rejected:** A separate desktop route or a second set of components.
+- **Why:** The desktop mock (`Desktop.dc.html`, 1440x900) keeps every part of the phone design and only changes where things sit, so CSS is enough. One tree means a fix lands in both, which matters with a day left.
+- **Cost:** Two small headers exist (`TripTopBar` for the phone, `SheetHeader` for the desktop) and CSS hides one of them; `display: none` keeps the hidden one out of the accessibility tree.
+- **Decided by:** Soma · 2026-11-09
+### D73. Tailwind CSS v4 instead of CSS Modules
+- **Chosen:** Tailwind v4 through `@tailwindcss/postcss`, with the design tokens declared in `@theme` in `app/globals.css` so each token is both a CSS variable and a utility (`--color-ink` → `bg-ink`, `--breakpoint-desk: 900px` → `desk:`). The three glass treatments and the scrollbar hiding stay as `@layer components` classes, because they are multi-property effects no utility covers. **Rejected:** keeping the CSS Modules written earlier the same day.
+- **Why:** The team asked for Tailwind; they write it faster than hand-rolled CSS, which matters for the UI work left before the freeze. Nothing about the design changed — the port kept the same tokens and the same markup.
+- **Cost:** About an hour of churn with no user-visible change, on the last night. Weighed against faster edits for the rest of the build.
+- **Decided by:** Soma · 2026-11-09
+### D74. Pick a destination by tapping the map, with data-driven styling
+- **Chosen:** While the chat asks for a destination, the map behind turns regions (`ADMINISTRATIVE_AREA_LEVEL_1` — Japanese prefectures, US states, and so on) into tappable features with Google's data-driven styling, and a tap answers the card. The start screen has a "pick on the map" button next to send that opens a trip straight into this state. **Rejected:** shipping an SVG map of Japan with the 47 prefectures.
+- **Why:** The boundaries come from Maps data, so there is no new asset to license — and with a day left, an unverified licence is the risk we least want to add. It also works worldwide for free, which an SVG of Japan would not, and keeps the stack Google-only (PLAN.md 2).
+- **Cost:** It needs a vector Map ID with that feature layer enabled in the Cloud console (`NEXT_PUBLIC_MAPS_MAP_ID`). Without it `layer.isAvailable` is false, the picker is not drawn, and the destination card stays free text only — so a missing Map ID degrades quietly instead of breaking.
+- **Decided by:** Soma · 2026-11-09
+### D75. The map region picker was removed again
+- **Chosen:** Drop it (the overlay, `RegionPicker`, the "pick on the map" button and `NEXT_PUBLIC_MAPS_MAP_ID`). The destination card keeps free text plus the suggestion cards.
+- **Why:** It needed a vector Map ID that was never configured, so it was a dead end in the UI: the map opened but no region could be tapped. One screen fewer to explain in a 3-minute demo, and one less console step before submission.
+- **Decided by:** Soma · 2026-11-09
