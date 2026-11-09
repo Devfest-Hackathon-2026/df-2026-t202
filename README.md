@@ -3,6 +3,13 @@
 > **チャットで答えるだけで、「本当に回れる」旅行プランを。**
 > 実在するスポット・実際の移動時間・スポットごとの YouTube ショートが入った日ごとのプランを AI が作り、リンクひとつで友だちと共有できます。
 
+![Gemini](https://img.shields.io/badge/Gemini_3.5_Flash-Vertex_AI-4285F4?logo=googlegemini&logoColor=white)
+![Google Maps Platform](https://img.shields.io/badge/Google_Maps-Places_·_Routes-34A853?logo=googlemaps&logoColor=white)
+![Cloud Run](https://img.shields.io/badge/Cloud_Run-FastAPI-4285F4?logo=googlecloud&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-Firestore_·_Auth_·_App_Hosting-FFCA28?logo=firebase&logoColor=black)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+
 ![Tripi のスタート画面：行き先を入力するか、例から選ぶ](docs/images/start.jpg)
 
 | ① 自由な文章で伝える | ② 条件を確認して「プランを作成」 |
@@ -114,31 +121,67 @@ Tripi は、この 2 つの問題を同時に解きます。**AI の発想力で
 
 ## アーキテクチャ
 
+```mermaid
+flowchart LR
+    U(("ユーザー<br/>スマホ / PC"))
+
+    subgraph FE["フロントエンド"]
+        H["Firebase Hosting<br/>tripi.web.app"]
+        W["Next.js 16 · React 19<br/>Firebase App Hosting"]
+    end
+
+    subgraph BR["ブラウザで直接使う Google サービス"]
+        AU["Firebase Authentication<br/>+ App Check"]
+        MJ["Maps JavaScript API"]
+        YP["YouTube 埋め込みプレイヤー"]
+    end
+
+    subgraph BE["Cloud Run · asia-northeast1"]
+        API["Tripi API<br/>Python 3.12 · FastAPI"]
+    end
+
+    subgraph AI["AI と実データ"]
+        G["Vertex AI<br/>Gemini 3.5 Flash"]
+        PL["Places API (New)"]
+        RT["Routes API"]
+        YT["YouTube Data API v3"]
+    end
+
+    DB[("Cloud Firestore")]
+    SM["Secret Manager"]
+
+    U --> H --> W
+    W --> AU
+    W --> MJ
+    W --> YP
+    W -- "HTTPS<br/>ID トークン + App Check" --> API
+    DB -. "リアルタイム同期<br/>（読み取りのみ）" .-> W
+    API -- "書き込み<br/>（Admin SDK）" --> DB
+    API --> G
+    API --> PL
+    API --> RT
+    API --> YT
+    SM -. "API キー" .-> API
 ```
-ブラウザ / スマホ（Next.js・Firebase App Hosting）
-  ├─ Maps JavaScript API・YouTube 埋め込みプレイヤー（表示のみ。ブラウザ用キーはドメインと API で制限）
-  ├─ Firebase Authentication・App Check
-  ├─ Firestore リスナー ◄── 旅行・メッセージ・プラン・進捗をリアルタイムで受信（読み取りのみ）
-  └─ HTTPS（ID トークン + App Check トークン）
-        ▼
-Cloud Run：Tripi API（Python 3.12・FastAPI・google-genai）
-  ├─ Vertex AI Gemini（Concierge・Planner）
-  ├─ Places API (New)・Routes API・YouTube Data API v3
-  ├─ Secret Manager（API キー）・Cloud Logging
-  └─ Firestore（Admin SDK）── データを書き込むのはこの API だけ
-```
+
+- **書き込むのは API だけ**：ブラウザは Firestore を読むだけ。旅行データはメンバーしか読めない（セキュリティルール）
+- **キーはサーバーに**：Places・Routes・YouTube のキーは Secret Manager。Gemini はサービスアカウント認証でキー不要
+- **画面はリアルタイム**：チャット・進捗・プランは Firestore のリスナーで即座に反映され、共有相手にも同じ内容が届く
 
 ### プラン生成パイプライン
 
-1. **下書き**：Gemini が条件とチャット全文から、日ごとのスポット・時刻・移動手段・費用の幅を作る（約 30 秒）
-2. **実在確認**：全スポットを Places API で並列に検索。別の国・遠すぎる同名スポット・都市名だけのものは不採用
-3. **移動時間**：全区間を Routes API で並列に計算し、実際の所要時間で 1 日の時刻を組み直す
-4. **チェック**：見つからないスポット、到着時に閉まっているスポット、5 時間超の運転、深夜 0 時を過ぎる日を検出
-5. **修正（最大 1 回）**：問題をまとめて Gemini に渡し、変更した日だけを返させる。変わったスポットだけを再検証
-6. **動画**：各スポットのショートを検索（キャッシュ済みなら API を呼ばない）
-7. **保存**：プランを Firestore に保存。画面はリアルタイムに更新される
+```mermaid
+flowchart TD
+    A["① 下書き<br/>Gemini が条件とチャットから日ごとのプランを作成"] --> B["② 実在確認<br/>Places API で全スポットを並列検索"]
+    B --> C["③ 移動時間<br/>Routes API で全区間を並列計算し、時刻を組み直す"]
+    C --> D{"④ チェック<br/>見つからない・閉まっている<br/>長距離運転・深夜0時超え"}
+    D -- "問題あり（最大 1 回）" --> E["⑤ 修正<br/>Gemini が変更した日だけを返す"]
+    E --> B
+    D -- "問題なし" --> F["⑥ 動画<br/>スポットごとの YouTube ショート"]
+    F --> G["⑦ 保存<br/>Firestore → 画面にリアルタイム反映"]
+```
 
-AI の出力はすべて Pydantic モデルで検証し、形式が崩れていれば 1 回だけ再試行します。
+AI の出力はすべて Pydantic モデルで検証し、形式が崩れていれば 1 回だけ再試行します。修正後は変わったスポットだけを再検証します（Places・Routes の結果はキャッシュ）。
 
 ## セキュリティ・スケーラビリティ・保守性
 
@@ -165,12 +208,16 @@ AI の出力はすべて Pydantic モデルで検証し、形式が崩れてい�
 
 ## 技術スタック
 
-- **フロントエンド**：Next.js 16（App Router）・React 19・Tailwind CSS v4・@vis.gl/react-google-maps
-- **バックエンド**：Python 3.12・FastAPI・Pydantic v2・google-genai SDK・httpx
-- **データ**：Cloud Firestore（Native mode、asia-northeast1）
-- **AI**：Gemini 3.5 Flash（Vertex AI、asia-northeast1）
-- **インフラ**：Cloud Run・Firebase App Hosting・Firebase Hosting（短い公開 URL）・Secret Manager
-- **テスト・品質**：pytest・Firestore エミュレーター・Vitest・ruff・Prettier
+| レイヤー | 技術 |
+| --- | --- |
+| **フロントエンド** | Next.js 16（App Router）・React 19・TypeScript・Tailwind CSS v4・@vis.gl/react-google-maps |
+| **バックエンド** | Python 3.12・FastAPI・Pydantic v2・httpx |
+| **AI** | Gemini 3.5 Flash（Vertex AI・asia-northeast1）・google-genai SDK |
+| **地図・動画** | Places API (New)・Routes API・Maps JavaScript API・YouTube Data API v3 |
+| **データ** | Cloud Firestore（リアルタイム同期・セキュリティルール） |
+| **認証・保護** | Firebase Authentication（Google・匿名）・Firebase App Check（reCAPTCHA Enterprise）・Secret Manager |
+| **ホスティング** | Cloud Run（API）・Firebase App Hosting（Web）・Firebase Hosting（公開 URL） |
+| **テスト・品質** | pytest・Firestore エミュレーター・Vitest・ruff・Prettier・TypeScript 型チェック |
 
 ## セットアップ
 
