@@ -211,3 +211,70 @@ async def test_search_place_wraps_http_and_key_errors(monkeypatch, anyio_backend
         monkeypatch.setattr(places, "search_text", boom)  # Person B's real search_text is used now
         with pytest.raises(flow.PlaceLookupError):
             await flow.search_place("Kyushu", "en")
+
+
+# ---------- start point (transport card, second screen) ----------
+
+
+@pytest.mark.parametrize(
+    "place, area",
+    [
+        ({"primaryType": "international_airport", "types": ["airport"]}, False),
+        ({"primaryType": "train_station", "types": ["train_station", "transit_station"]}, False),
+        ({"primaryType": "hotel", "types": ["lodging"]}, False),
+        ({"primaryType": "locality", "types": ["locality", "political"]}, True),
+        ({"primaryType": "administrative_area_level_1", "types": ["political"]}, True),
+        ({"primaryType": None, "types": ["country", "political"]}, True),
+        ({"primaryType": None, "types": ["street_address"]}, False),
+    ],
+)
+def test_is_area(place, area):
+    assert flow.is_area(place) is area
+
+
+async def test_search_start_keeps_specific_places_and_drops_areas(monkeypatch, anyio_backend):
+    found = {
+        "KLIA": {"label": "Kuala Lumpur International Airport", "placeId": "a", "primaryType": "international_airport"},
+        "Selangor": {"label": "Selangor", "placeId": "b", "primaryType": "administrative_area_level_1"},
+    }
+
+    async def fake_search_text(query, lang, near=None):
+        return found.get(query)
+
+    monkeypatch.setattr(places, "search_text", fake_search_text)
+    start = await flow.search_start("KLIA", "en")
+    assert start is not None and start.placeId == "a"
+    assert await flow.search_start("Selangor", "en") is None
+    assert await flow.search_start("nowhere", "en") is None
+
+
+def test_transport_answer_replaces_or_clears_the_start():
+    slots = Slots(origin=PlaceRef(label="Hakata Station"))
+    slots = flow.apply_answer(slots, "transport", {"transport": ["car"], "origin": {"label": "Fukuoka Airport"}})
+    assert slots.origin is not None and slots.origin.label == "Fukuoka Airport"
+    slots = flow.apply_answer(slots, "transport", {"transport": ["car"], "origin": None})  # "not decided yet"
+    assert slots.origin is None
+    slots.origin = PlaceRef(label="Hakata Station")
+    slots = flow.apply_answer(slots, "transport", ["train"])  # modes only: the start stays
+    assert slots.origin is not None
+
+
+# ---------- currency from the user's settings ----------
+
+
+def test_settings_currency_wins_over_destination_and_answers():
+    slots = Slots(currency="JPY")
+    slots = flow.apply_answer(slots, "dest", {"label": "Malaysia", "countryCode": "MY"})
+    assert slots.budget is not None and slots.budget.currency == "JPY"
+    assert flow.card_for("budget", slots).options == [str(c) for c in flow.BUDGET_CHIPS["JPY"]]
+    slots = flow.apply_answer(slots, "budget", {"basis": "person", "amount": 50000, "currency": "USD"})
+    assert slots.budget.currency == "JPY"
+    slots = flow.apply_answer(slots, "dest", {"label": "Paris", "countryCode": "FR"})
+    assert slots.budget.currency == "JPY"
+    new = flow.merge_updates(slots, SlotUpdates.model_validate({"budget": {"amount": 300, "currency": "USD"}}))
+    assert new.budget is not None and new.budget.currency == "JPY"
+
+
+def test_without_settings_currency_the_destination_decides():
+    slots = flow.apply_answer(Slots(), "dest", {"label": "Paris", "countryCode": "FR"})
+    assert slots.budget is not None and slots.budget.currency == "EUR"

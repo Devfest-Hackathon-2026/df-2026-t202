@@ -15,7 +15,7 @@ from google.cloud.firestore_v1.field_path import FieldPath
 from app import flow
 from app.agents import concierge
 from app.auth import User, require_owner
-from app.models import ConciergeOutput, CreateTripIn, MessageIn, PlaceRef, Slots
+from app.models import Budget, ConciergeOutput, CreateTripIn, MessageIn, PlaceRef, Slots
 from app.services.firestore import add_message, db, get_trip, now
 from app.services.limits import check_message_limit, reserve_messages
 from app.services.llm import LLMError
@@ -27,6 +27,12 @@ MAX_TEXT_LENGTH = 1000
 MAX_AI_TEXT_LENGTH = 500  # cap on Gemini comment/clarify before storing
 
 
+def _new_slots(currency: str | None) -> Slots:
+    if not currency:
+        return Slots()
+    return Slots(currency=currency, budget=Budget(currency=currency))
+
+
 @router.post("/trips")
 async def create_trip(body: CreateTripIn, uid: User) -> dict:
     ref = db().collection("trips").document()
@@ -35,7 +41,8 @@ async def create_trip(body: CreateTripIn, uid: User) -> dict:
             "ownerUid": uid,
             "members": {uid: "owner"},
             "language": body.language,
-            "slots": Slots().model_dump(mode="json"),
+            # The currency from the user's settings is fixed for the whole trip (budget and costs).
+            "slots": _new_slots(body.currency).model_dump(mode="json"),
             "asking": "dest",
             "status": "chatting",
             "progress": None,
@@ -105,6 +112,8 @@ async def _resolve_dest(trip_id: str, step: str, value):
     """Card answers carry a label but no place. Look it up, so the trip gets the real place id,
     coordinates and country — the country is what picks the currency (flow._sync_currency).
     A failed lookup keeps the label: the plan pipeline resolves places again anyway."""
+    if step == "transport":
+        return await _resolve_start(trip_id, value)
     if step != "dest" or not isinstance(value, dict) or value.get("placeId"):
         return value
     label = str(value.get("label") or "").strip()
@@ -116,6 +125,22 @@ async def _resolve_dest(trip_id: str, step: str, value):
     except flow.PlaceLookupError:
         return value
     return place.model_dump(mode="json") if place else value
+
+
+async def _resolve_start(trip_id: str, value):
+    """The transport card's start point. A specific place (airport, station, hotel) becomes the origin;
+    an area (city, state) or "not decided" leaves it empty, so Day 1 starts at the first attraction."""
+    if not isinstance(value, dict) or not isinstance(value.get("origin"), dict):
+        return value
+    label = str(value["origin"].get("label") or "").strip()
+    if not label or value["origin"].get("placeId"):
+        return value
+    trip = await get_trip(trip_id)
+    try:
+        origin = await flow.search_start(label, (trip or {}).get("language", "en"))
+    except flow.PlaceLookupError:
+        origin = None  # can't tell what it is: don't pin Day 1 to it
+    return {**value, "origin": origin.model_dump(mode="json") if origin else None}
 
 
 async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
@@ -145,7 +170,8 @@ async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
                 _log_place_ignored(trip_id, "dest")
                 comment, clarify = None, flow.text_for("place_not_found", lang)
         if out and out.updates.origin:
-            origin = await flow.search_place(out.updates.origin, lang)
+            # Only a specific place (airport, station, hotel) is a start point; an area is ignored.
+            origin = await flow.search_start(out.updates.origin, lang)
             if origin is None:
                 _log_place_ignored(trip_id, "origin")
     except flow.PlaceLookupError:

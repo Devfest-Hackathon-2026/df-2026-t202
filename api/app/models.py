@@ -57,6 +57,7 @@ class Slots(BaseModel):
     prefs: list[str] = Field(default_factory=list)
     musts: list[str] = Field(default_factory=list)
     status: dict[StepKey, SlotStatus] = Field(default_factory=_empty_status)
+    currency: Optional[str] = None  # the user's currency from settings; when set, the budget always uses it
 
 
 class SlotUpdates(BaseModel):
@@ -140,9 +141,21 @@ class Plan(BaseModel):
     checks: list[str] = Field(default_factory=list)  # things to confirm before the trip
 
 
+class DayFix(BaseModel):
+    """One day from the Planner's repair round: the day's complete new list of stops."""
+    day: int
+    stops: list[Stop]
+
+
+class PlanFix(BaseModel):
+    """Planner repair output (not stored). Only the changed days, so the call stays short (D83)."""
+    days: list[DayFix]
+
+
 # ---------- API request bodies ----------
 class CreateTripIn(BaseModel):
     language: Lang = "en"
+    currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")  # ISO 4217, from the user's settings
 
 
 class MessageIn(BaseModel):

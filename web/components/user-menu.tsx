@@ -5,6 +5,7 @@ import { Check, CircleUserRound, House, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { signOutUser } from '@/lib/auth';
+import { CURRENCIES, setCurrency, useCurrency, type Currency } from '@/lib/currency';
 import { setLanguage, useLanguage, useT } from '@/lib/i18n';
 import type { Language } from '@/lib/language';
 import type { Trip } from '@/lib/types';
@@ -15,6 +16,9 @@ const LANGUAGES: Language[] = ['en', 'ja'];
 export function UserMenu({ user, trips }: { user: User; trips: Trip[] }) {
   const t = useT();
   const language = useLanguage();
+  const currency = useCurrency();
+  const currencyName = (code: string) =>
+    new Intl.DisplayNames(language, { type: 'currency' }).of(code) ?? code;
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
@@ -51,7 +55,7 @@ export function UserMenu({ user, trips }: { user: User; trips: Trip[] }) {
         <div
           role="menu"
           aria-label={t('auth.account')}
-          className="frost absolute top-13 right-0 z-50 flex max-h-[70svh] w-64 flex-col overflow-y-auto rounded-2xl p-1.5"
+          className="frost absolute top-13 right-0 z-50 flex max-h-[70svh] w-64 flex-col overflow-y-auto overscroll-contain rounded-2xl p-1.5"
         >
           <p className="text-ink m-0 truncate px-2.5 py-2 text-[13px] font-semibold">
             {user.displayName || user.email || t('auth.account')}
@@ -119,6 +123,25 @@ export function UserMenu({ user, trips }: { user: User; trips: Trip[] }) {
               {t(`language.${lang}`)}
             </button>
           ))}
+
+          <span className="bg-line/60 mx-2.5 my-1 h-px" />
+
+          {/* Currency for budgets and costs on new trips (a trip keeps the one it started with). */}
+          <label className="flex flex-col gap-1 px-2.5 pt-1 pb-2">
+            <span className="text-muted text-[11px] font-medium">{t('auth.currency')}</span>
+            <span className="text-muted text-[11px] leading-snug">{t('auth.currencyNote')}</span>
+            <select
+              className="text-ink border-ink/15 min-h-11 rounded-xl border bg-white/70 px-2.5 text-[13px]"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as Currency)}
+            >
+              {CURRENCIES.map((code) => (
+                <option key={code} value={code}>
+                  {code} · {currencyName(code)}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <span className="bg-line/60 mx-2.5 my-1 h-px" />
 

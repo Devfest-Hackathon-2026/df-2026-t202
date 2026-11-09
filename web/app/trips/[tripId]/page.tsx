@@ -10,6 +10,7 @@ import { PhotoChat } from '@/components/chat/photo-chat';
 import { DayTabs } from '@/components/day-tabs';
 import { MapCanvas, type MapSelection } from '@/components/map-canvas';
 import { MapsProvider } from '@/components/maps-provider';
+import { PageLoader } from '@/components/page-loader';
 import { PlanPanel } from '@/components/plan/plan-panel';
 import { SpotPanel } from '@/components/plan/spot-panel';
 import { ShareSheet } from '@/components/share-sheet';
@@ -53,9 +54,7 @@ export default function TripPage({ params }: { params: Promise<{ tripId: string 
     setStop('peek'); // on a phone the sheet would otherwise sit under the panel
   }
 
-  if (authLoading || tripLoading || messagesLoading) {
-    return <p className={PANEL_TEXT}>{t('state.loading')}</p>;
-  }
+  if (authLoading || tripLoading || messagesLoading) return <PageLoader />;
   if (tripError || messagesError) return <p className={PANEL_TEXT}>{t('state.error')}</p>;
   if (!user) return <p className={PANEL_TEXT}>{t('auth.signInNeeded')}</p>;
   if (!trip) return <p className={PANEL_TEXT}>{t('state.notFound')}</p>;
@@ -63,7 +62,7 @@ export default function TripPage({ params }: { params: Promise<{ tripId: string 
   // ---- Phase 1: still collecting conditions, or building the plan ----
   if (!trip.currentPlanId) {
     return (
-      <main className="relative flex h-[100svh] flex-col bg-[url('/dusk.webp')] bg-cover bg-[position:50%_45%]">
+      <main className="relative flex h-[100svh] flex-col overflow-hidden bg-[url('/dusk.webp')] bg-cover bg-[position:50%_45%]">
         <header className="flex flex-none items-center justify-end gap-2 px-4 py-3">
           <UserMenu user={user} trips={trips} />
         </header>
@@ -112,7 +111,8 @@ export default function TripPage({ params }: { params: Promise<{ tripId: string 
           />
           <SheetTabs tab={tab} onTabChange={setTab} />
           <div
-            className={PANEL_WRAP}
+            key={tab}
+            className={`${PANEL_WRAP} rise`}
             role="tabpanel"
             id={`sheet-panel-${tab}`}
             aria-labelledby={`sheet-tab-${tab}`}
@@ -130,6 +130,7 @@ export default function TripPage({ params }: { params: Promise<{ tripId: string 
                 onSelectStop={openStop}
                 onOpenShorts={openStop}
                 onShare={() => setSharing(true)}
+                selected={selected}
               />
             )}
           </div>

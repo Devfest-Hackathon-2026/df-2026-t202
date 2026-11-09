@@ -23,6 +23,11 @@
   --color-accent: #d9443b;
   --color-on-accent: #ffffff;
 
+  /* Done / success (the generating steps) */
+  --color-ok: #059669;
+  /* "Please check" warnings on the dark panels */
+  --color-warn: #fbbf24;
+
   /* Map */
   --color-map-water: #cfe3f0;
   --color-map-land: #f7f5f0;
@@ -47,9 +52,18 @@
   --height-sheet-full: 91.2svh;
 
   --ease-sheet: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Strong ease-out for things that enter; ease-in-out for things that move on screen. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 
   /* The desktop mock is 1440x900; below this the phone layout is used. */
   --breakpoint-desk: 900px;
+}
+
+/* Plain variables (not Tailwind theme tokens): always emitted. */
+:root {
+  --dur-enter: 560ms;
+  --stagger: 70ms;
 }
 
 @layer base {
@@ -57,6 +71,9 @@
   body {
     height: 100%;
     margin: 0;
+    /* The screen itself never scrolls or rubber-bands; only panels inside it (the chat) scroll. */
+    overflow: hidden;
+    overscroll-behavior: none;
     color: var(--color-ink);
     background: var(--color-map-water);
     font-family: var(--font-sans);
@@ -68,7 +85,7 @@
     cursor: pointer;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
-    transition: transform 0.12s ease;
+    transition: transform 160ms var(--ease-out);
   }
 
   button:disabled {
@@ -95,12 +112,190 @@
     -webkit-backdrop-filter: blur(56px) saturate(1.5);
   }
 
+  /* Scrolls without a visible bar, and never passes the scroll on to the page behind it. */
   .noscroll {
     scrollbar-width: none;
+    overscroll-behavior: contain;
   }
 
   .noscroll::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/*
+ * Motion. Things that appear rise 16 px and fade in over ~0.55 s on a strong ease-out, so they
+ * start quickly and settle slowly. Lists set --i on each child (or use .stagger) for a 70 ms
+ * cascade. Only transform and opacity animate, so it stays smooth on phones.
+ */
+@layer components {
+  .rise {
+    animation: rise var(--dur-enter) var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * var(--stagger));
+  }
+
+  .stagger > * {
+    animation: rise var(--dur-enter) var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * var(--stagger));
+  }
+
+  .stagger > :nth-child(2) {
+    animation-delay: calc((var(--i, 0) + 1) * var(--stagger));
+  }
+
+  .stagger > :nth-child(3) {
+    animation-delay: calc((var(--i, 0) + 2) * var(--stagger));
+  }
+
+  .stagger > :nth-child(4) {
+    animation-delay: calc((var(--i, 0) + 3) * var(--stagger));
+  }
+
+  .stagger > :nth-child(5) {
+    animation-delay: calc((var(--i, 0) + 4) * var(--stagger));
+  }
+
+  .stagger > :nth-child(6) {
+    animation-delay: calc((var(--i, 0) + 5) * var(--stagger));
+  }
+
+  .stagger > :nth-child(7) {
+    animation-delay: calc((var(--i, 0) + 6) * var(--stagger));
+  }
+
+  .stagger > :nth-child(8) {
+    animation-delay: calc((var(--i, 0) + 7) * var(--stagger));
+  }
+
+  .stagger > :nth-child(9) {
+    animation-delay: calc((var(--i, 0) + 8) * var(--stagger));
+  }
+
+  .stagger > :nth-child(n + 10) {
+    animation-delay: calc((var(--i, 0) + 9) * var(--stagger));
+  }
+
+  /* The panel over the map slides up when the plan opens. */
+  .sheet-in {
+    animation: sheet-in 800ms var(--ease-sheet) both;
+  }
+
+  /* A question card that has been answered fades down and folds away before the next one. */
+  .card-shell {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 450ms var(--ease-in-out) 180ms;
+  }
+
+  .card-shell > * {
+    min-height: 0;
+  }
+
+  .card-shell.leaving {
+    grid-template-rows: 0fr;
+    pointer-events: none;
+  }
+
+  .card-shell.leaving > * {
+    overflow: hidden;
+    animation: leave 320ms var(--ease-out) forwards;
+  }
+
+  .bump {
+    display: inline-block;
+    animation: bump 360ms var(--ease-out);
+  }
+
+  .pop {
+    animation: pop 420ms var(--ease-out) both;
+  }
+
+  /* Three dots in an AI bubble while the reply is on its way. */
+  .typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: typing 1.2s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.36s;
+  }
+
+  /* A cost range bar grows from its left end. */
+  .grow-x {
+    transform-origin: left;
+    animation: grow-x 1000ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 90ms + 250ms);
+  }
+
+  .spin-ring {
+    animation: spin 0.9s linear infinite;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+@keyframes leave {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(40%);
+  }
+}
+
+@keyframes bump {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

@@ -223,7 +223,8 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
   "prefs": ["onsen", "views", "night_view"],
   "musts": ["Takachiho Gorge", "Mt. Inasa night view"],
   "status": {"dest": "done", "dates": "done", "people": "done", "budget": "skip",
-             "transport": "done", "prefs": "done", "musts": "done"}
+             "transport": "done", "prefs": "done", "musts": "done"},
+  "currency": "JPY"  // the user's currency from settings (null = follow the destination); the budget always uses it
 }
 ```
 
@@ -299,7 +300,7 @@ Rules:
 | 2 | `dates` | When do you want to go? | `dates`: date range picker + "not decided" → nights chips | Save `dates` or `nights` |
 | 3 | `people` | How many people? | `people`: adult/child/infant +/– | Save `people` |
 | 4 | `budget` | What is your budget? | `budget`: per person/total switch + amount chips + slider. Currency from destination country. | Save `budget` |
-| 5 | `transport` | How do you want to travel? | `transport`: multi-select chips + origin search box | Save `transport`, `origin` |
+| 5 | `transport` | How will you get around? | `transport`: multi-select chips, then a second screen "Where does your trip start?" (text box + "Not decided yet") | Save `transport` and `origin`. `origin` is kept only for a specific place (airport, station, hotel, address: Places `primaryType` not an area); a city/state/region or "not decided" saves `null`, and the Planner starts Day 1 at the first attraction |
 | 6 | `prefs` | What kind of trip do you want? | `prefs`: multi-select chips + free text | Save `prefs` |
 | 7 | `musts` | Any places you must visit? | `musts`: free text + "none" | Save `musts` |
 | — | `ready` | Here is your plan! | `ready`: trip card + "See plan" button | Start plan pipeline |
@@ -343,7 +344,7 @@ Every request needs `Authorization: Bearer <Firebase ID token>` and `X-Firebase-
 
 | Method | Path | Body | What it does |
 |---|---|---|---|
-| POST | `/trips` | `{language}` | Create a trip. Write the first AI message with the `dest` card. Return `{tripId}`. |
+| POST | `/trips` | `{language, currency?}` | Create a trip. `currency` (ISO 4217, from the user's settings, default JPY in the web app) is saved as `slots.currency` and fixes the budget currency for the whole trip. Write the first AI message with the `dest` card. Return `{tripId}`. |
 | POST | `/trips/{id}/messages` | `{type:"answer", step, value}` or `{type:"text", text}` | Save the user message. Update slots (directly for answers, via Concierge for text). Write the AI reply with the next card. |
 | POST | `/trips/{id}/plan` | `{}` | Run the plan pipeline (9.3). Write progress to the trip doc. Save the plan. Return `{planId}`. |
 | POST | `/trips/{id}/share` | `{}` | Create `shares/{shareId}` with a random 22+ character id. Return `{shareId}`. |
@@ -379,18 +380,18 @@ Implementation notes:
 1. Set `trips.status = "planning"`, `progress = "spots"`.
 2. **Planner** reads slots and the full chat. It returns a draft plan: days, stops (name + time), leg modes, cost ranges, checks.
 3. For each stop, call **Places API Text Search** (biased to the destination). Save `placeId`, `lat`, `lng`, official name in the trip language, `nameLocal`, opening hours. Use `cache_places`.
-   - If a spot is not found, ask the Planner once for a replacement. If it still fails, remove the stop and add a note to `checks`.
+   - A spot that is not found goes into the one repair round (step 6). If it still fails, remove the stop and add a note to `checks`.
 4. Set `progress = "routes"`. For each leg, call **Routes API `computeRoutes`**. Save `minutes` and `polyline`.
    - Transit cannot use waypoints, so compute transit one leg at a time.
    - `FLIGHT` and `FERRY` legs, and legs with no route, keep the Planner estimate with `estimate: true`.
 5. Recalculate stop times from the real leg times. Add warnings:
    - Driving more than 5 hours in one day.
    - Arrival outside opening hours.
-6. If there are 3 or more warnings, ask the Planner to fix the plan **once**. Repeat steps 3–5 for changed stops only.
+6. If a spot was not found, a stop is closed on arrival, or there are 3 or more warnings, ask the Planner to fix the plan **once**, with all of them in one call. It returns only the changed days (`PlanFix`: `{days: [{day, stops}]}`, not stored); the server swaps them in and repeats steps 3–5 for changed stops only (D83).
 7. Set `progress = "videos"`. **Media** gets Shorts for each stop (9.4).
 8. Save `trips/{id}/plans/{planId}` (version 1). Set `currentPlanId`, `status = "ready"`, `progress = "done"`.
 
-Plan quality comes before speed: the Planner alone takes about 30 s, so a plan may take longer (D44). Run Places, Routes and YouTube calls in parallel (`asyncio.gather`) to keep the rest fast; the front end shows progress meanwhile.
+Plan quality comes before speed: the Planner alone takes about 30 s, so a plan takes about 30–45 s (D44, D83). Run Places, Routes and YouTube calls in parallel (`asyncio.gather`) to keep the rest fast; the front end shows progress meanwhile.
 
 ### 9.4 YouTube Shorts
 

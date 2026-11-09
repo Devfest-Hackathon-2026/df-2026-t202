@@ -1,10 +1,10 @@
 """Plan pipeline (Person B). BACKEND_PERSON_B.md T4, PLAN.md 9.3. Progress goes to the trip doc (no SSE).
 
 1. claim the trip (status "planning")         2. planner.draft
-3. verify stops with Places; missing ones get one Planner replacement round, then are dropped with a note
-4. progress "routes": real legs from Routes    5. re-time each day
-6. warnings: long driving, closed on arrival, past midnight
-7. >= 3 warnings or any "closed" -> planner.fix once (with the opening hours), redo 3-6
+3. verify stops with Places                    4. progress "routes": real legs from Routes (found stops only)
+5. re-time each day                            6. warnings: long driving, closed on arrival, past midnight
+7. any stop not found, >= 3 warnings or any "closed" -> ONE planner.fix with all of them (D83), then redo 3-6 for
+   the changed stops; a stop still not found is dropped with a note
 8. progress "videos": YouTube Shorts         9. cost check, save_plan -> planId
 On any error (or a cancelled request): status "error", then re-raise (the router turns it into an HTTP error).
 Plan quality comes before speed (D44); every API call inside a step runs in parallel. Repair rounds only start in the
@@ -403,9 +403,15 @@ def check_cost(plan: Plan, slots: Slots, run: Run) -> None:
 # ---------- The whole run ----------
 
 
-async def _check(plan: Plan, run: Run, trip_id: str) -> tuple[list[str], int]:
-    """Steps 4-6. Returns the warnings and how many are "closed on arrival"."""
-    await fs.update_trip(trip_id, {"progress": "routes"})
+def _without(plan: Plan, missing: list[tuple[int, Stop]]) -> Plan:
+    """The plan without the stops Places couldn't find. Shares the Stop objects, so legs and times land on `plan`."""
+    gone = {id(stop) for _, stop in missing}
+    days = [day.model_copy(update={"stops": [s for s in day.stops if id(s) not in gone]}) for day in plan.days]
+    return plan.model_copy(update={"days": [day for day in days if day.stops]})
+
+
+async def _check(plan: Plan, run: Run) -> tuple[list[str], int]:
+    """Steps 4-6. Returns the warnings and how many are "closed on arrival". Routes calls are memoized in `run`."""
     await add_legs(plan, run)
     retime(plan)
     return add_warnings(plan, run)
@@ -431,18 +437,17 @@ async def run(trip_id: str) -> str:
         stage["draft"] = time.perf_counter() - started
 
         missing = await verify(plan, r)
-        if missing and time.perf_counter() - started < FIX_BEFORE_S:  # one replacement round, then drop (D47)
-            asks = [_ask(d, s, r) for d, s in missing]
-            plan = await planner.fix(plan, asks, lang)
-            missing = await verify(plan, r)
-        drop(plan, missing, r)
         stage["spots"] = time.perf_counter() - started
 
-        warnings, closed = await _check(plan, r, trip_id)
-        if (len(warnings) >= FIX_AT_WARNINGS or closed) and time.perf_counter() - started < FIX_BEFORE_S:
-            plan = await planner.fix(plan, warnings, lang)  # one repair round (spec step 7)
-            drop(plan, await verify(plan, r), r)
-            await _check(plan, r, trip_id)
+        # One repair round for everything at once (D83): unfound stops, and the warnings of the plan without them.
+        await fs.update_trip(trip_id, {"progress": "routes"})
+        warnings, closed = await _check(_without(plan, missing), r)
+        if (missing or len(warnings) >= FIX_AT_WARNINGS or closed) and time.perf_counter() - started < FIX_BEFORE_S:
+            plan = await planner.fix(plan, [*(_ask(d, s, r) for d, s in missing), *warnings], lang)
+            missing = await verify(plan, r)
+            stage["fix"] = time.perf_counter() - started
+        drop(plan, missing, r)
+        await _check(plan, r)  # only legs between changed stops call Routes again
         stage["routes"] = time.perf_counter() - started
 
         await fs.update_trip(trip_id, {"progress": "videos"})

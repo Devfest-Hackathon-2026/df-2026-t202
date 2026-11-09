@@ -2,23 +2,31 @@
 
 import {
   Bus,
+  CalendarDays,
   Car,
   ChevronLeft,
   ChevronRight,
+  CircleCheck,
+  Heart,
+  MapPin,
   Minus,
+  Pencil,
   Plane,
   Plus,
   Ship,
   Sparkles,
+  Star,
   TrainFront,
+  Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useLanguage, useT } from '@/lib/i18n';
 import type { Slots, StepKey, TransportMode, UiCard } from '@/lib/types';
 
 const CARD =
-  'mt-1 flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/55 p-4 shadow-[0_12px_40px_rgba(8,24,48,0.22)] backdrop-blur-2xl';
+  'rise stagger mt-1 flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/78 p-4 shadow-[0_12px_40px_rgba(8,24,48,0.22)] backdrop-blur-2xl backdrop-saturate-150';
 const HINT = 'text-muted-strong text-center text-[12px]';
 const PILL_OFF = 'text-ink border-ink/15 min-h-10 rounded-full border bg-white/70 px-4 text-[13px]';
 const PILL_ON =
@@ -509,7 +517,10 @@ function PeopleCard({ slots, disabled, onAnswer, onBack }: CardProps) {
             <Minus size={18} aria-hidden="true" />
           </button>
           <span className="min-w-12 text-center text-[40px] leading-none font-bold tabular-nums">
-            {people.adult}
+            {/* A new key re-mounts the number, so it slides in on every change. */}
+            <span key={people.adult} className="bump">
+              {people.adult}
+            </span>
           </span>
           <button
             type="button"
@@ -545,7 +556,11 @@ function PeopleCard({ slots, disabled, onAnswer, onBack }: CardProps) {
             >
               <Minus size={15} aria-hidden="true" />
             </button>
-            <span className="min-w-5 text-center text-[15px] tabular-nums">{people[key]}</span>
+            <span className="min-w-5 text-center text-[15px] tabular-nums">
+              <span key={people[key]} className="bump">
+                {people[key]}
+              </span>
+            </span>
             <button
               type="button"
               className={`${ROUND} h-9 w-9`}
@@ -592,6 +607,17 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
     new Intl.NumberFormat(lang, { style: 'currency', currency, maximumFractionDigits: 0 }).format(
       value,
     );
+  // The amount is also a text field. It stays grouped ("50,000") while typing, so focusing it
+  // doesn't change the text and select-all works: typing replaces the number.
+  const shown = new Intl.NumberFormat(lang, { maximumFractionDigits: 0 }).format(amount);
+  const justFocused = useRef(false);
+  // "¥" before or "€" after the number, as the language writes it.
+  const parts = new Intl.NumberFormat(lang, { style: 'currency', currency }).formatToParts(0);
+  const symbol = parts.find((part) => part.type === 'currency')?.value ?? currency;
+  const symbolFirst =
+    parts.findIndex((part) => part.type === 'currency') <
+    parts.findIndex((part) => part.type === 'integer');
+  const submit = () => onAnswer('budget', { basis, amount, currency });
 
   return (
     <div className={CARD}>
@@ -628,13 +654,42 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
         >
           <Minus size={18} aria-hidden="true" />
         </button>
-        <span className="text-[30px] leading-none font-bold tabular-nums">{money(amount)}</span>
+        <label className="border-ink/25 focus-within:border-ink flex cursor-text items-baseline gap-0.5 border-b-2 border-dashed pb-0.5 text-[30px] leading-none font-bold tabular-nums transition-colors focus-within:border-solid">
+          {symbolFirst && <span aria-hidden="true">{symbol}</span>}
+          <input
+            className="text-ink min-w-[1ch] border-0 bg-transparent p-0 text-left font-inherit tabular-nums outline-none"
+            style={{ width: `${Math.max(shown.length, 1) + 0.3}ch` }}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            value={shown}
+            aria-label={`${t('card.budget.label')} (${currency})`}
+            disabled={disabled}
+            onFocus={(e) => {
+              e.currentTarget.select();
+              justFocused.current = true;
+            }}
+            // The click that focused the field would put the caret back; keep the selection.
+            onMouseUp={(e) => {
+              if (justFocused.current) e.preventDefault();
+              justFocused.current = false;
+            }}
+            onChange={(e) => setAmount(Number(e.target.value.replace(/\D/g, '').slice(0, 9) || 0))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          {!symbolFirst && <span aria-hidden="true">{symbol}</span>}
+        </label>
         <button
           type="button"
           className={`${ROUND} h-12 w-12`}
           aria-label={t('card.budget.more')}
-          disabled={disabled || amount >= max}
-          onClick={() => setAmount(Math.min(max, amount + step))}
+          disabled={disabled}
+          onClick={() => setAmount(amount + step)}
         >
           <Plus size={18} aria-hidden="true" />
         </button>
@@ -646,7 +701,7 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
         min={0}
         max={max}
         step={step}
-        value={amount}
+        value={Math.min(amount, max)}
         aria-label={t('card.budget.label')}
         disabled={disabled}
         onChange={(e) => setAmount(Number(e.target.value))}
@@ -659,12 +714,7 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
       <div className={ACTIONS}>
         {onBack && <BackButton onBack={onBack} disabled={disabled} />}
         <SkipButton step="budget" disabled={disabled} onAnswer={onAnswer} />
-        <button
-          type="button"
-          className={PRIMARY}
-          disabled={disabled}
-          onClick={() => onAnswer('budget', { basis, amount, currency })}
-        >
+        <button type="button" className={PRIMARY} disabled={disabled} onClick={submit}>
           {t('card.ok')}
         </button>
       </div>
@@ -687,7 +737,53 @@ const TRANSPORT_ICONS: Record<TransportMode, LucideIcon> = {
 function TransportCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
   const t = useT();
   const [picked, setPicked] = useState<TransportMode[]>(slots.transport ?? []);
-  const [origin, setOrigin] = useState(slots.origin?.label ?? '');
+  // Two screens in one card: how you get around, then where the trip starts.
+  const [stage, setStage] = useState<'modes' | 'start'>('modes');
+  const [start, setStart] = useState(slots.origin?.label ?? '');
+  const finish = (origin: string | null) =>
+    onAnswer('transport', { transport: picked, origin: origin ? { label: origin } : null });
+
+  if (stage === 'start') {
+    return (
+      <div key="start" className={CARD}>
+        <div className="flex flex-col gap-1">
+          <span className="text-ink text-[15px] font-bold">{t('card.transport.startTitle')}</span>
+          <span className="text-muted-strong text-[12px] leading-snug">
+            {t('card.transport.startHint')}
+          </span>
+        </div>
+        <input
+          className={INPUT}
+          value={start}
+          placeholder={t('card.transport.startPlaceholder')}
+          aria-label={t('card.transport.startTitle')}
+          disabled={disabled}
+          autoFocus
+          onChange={(e) => setStart(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && start.trim()) {
+              e.preventDefault();
+              finish(start.trim());
+            }
+          }}
+        />
+        <div className={ACTIONS}>
+          <BackButton onBack={() => setStage('modes')} disabled={disabled} />
+          <button type="button" className={GHOST} disabled={disabled} onClick={() => finish(null)}>
+            {t('card.transport.notDecided')}
+          </button>
+          <button
+            type="button"
+            className={PRIMARY}
+            disabled={disabled || !start.trim()}
+            onClick={() => finish(start.trim())}
+          >
+            {t('card.ok')}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const toggle = (mode: TransportMode) => {
     if (mode === 'any') return setPicked(picked.includes('any') ? [] : ['any']);
@@ -722,15 +818,6 @@ function TransportCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
         })}
       </div>
 
-      <input
-        className={INPUT}
-        value={origin}
-        placeholder={t('card.transport.origin')}
-        aria-label={t('card.transport.origin')}
-        disabled={disabled}
-        onChange={(e) => setOrigin(e.target.value)}
-      />
-
       <div className={ACTIONS}>
         {onBack && <BackButton onBack={onBack} disabled={disabled} />}
         <SkipButton step="transport" disabled={disabled} onAnswer={onAnswer} />
@@ -738,12 +825,7 @@ function TransportCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
           type="button"
           className={PRIMARY}
           disabled={disabled || picked.length === 0}
-          onClick={() =>
-            onAnswer('transport', {
-              transport: picked,
-              origin: origin.trim() ? { label: origin.trim() } : null,
-            })
-          }
+          onClick={() => setStage('start')}
         >
           {t('card.ok')}
         </button>
@@ -848,6 +930,22 @@ const SUMMARY_STEPS: StepKey[] = [
   'musts',
 ];
 
+/** "2027-03-10" as a local date (new Date("2027-03-10") would be UTC midnight). */
+function localDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+const SUMMARY_ICONS: Record<StepKey, LucideIcon> = {
+  dest: MapPin,
+  dates: CalendarDays,
+  people: Users,
+  budget: Wallet,
+  transport: TrainFront,
+  prefs: Heart,
+  musts: Star,
+};
+
 function ReadyCard({
   slots,
   disabled,
@@ -863,68 +961,144 @@ function ReadyCard({
 }) {
   const t = useT();
   const lang = useLanguage();
+  const set = SUMMARY_STEPS.filter((step) => slots.status[step] === 'done').length;
 
-  function value(step: StepKey): string {
+  function chips(labels: string[]): ReactNode {
+    if (labels.length === 0) return '';
+    return (
+      <span className="mt-0.5 flex flex-wrap gap-1">
+        {labels.map((label) => (
+          <span key={label} className="bg-ink/7 rounded-full px-2 py-0.5 text-[12px] font-semibold">
+            {label}
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  /** Written the way a person would: "Mar 10 – 13 · 3 nights", "2 adults · 1 child". */
+  function value(step: StepKey): ReactNode {
     switch (step) {
       case 'dest':
         return slots.dest?.label ?? '';
-      case 'dates':
-        if (slots.dates) return `${slots.dates.start} – ${slots.dates.end}`;
-        return slots.nights != null
-          ? t('card.dates.nights').replace('{n}', String(slots.nights))
-          : '';
+      case 'dates': {
+        const nights =
+          slots.nights != null ? t('card.dates.nights').replace('{n}', String(slots.nights)) : '';
+        if (!slots.dates) return nights;
+        const range = new Intl.DateTimeFormat(lang, { month: 'short', day: 'numeric' }).formatRange(
+          localDate(slots.dates.start),
+          localDate(slots.dates.end),
+        );
+        return nights ? `${range} · ${nights}` : range;
+      }
       case 'people': {
-        if (!slots.people) return '';
-        const total = slots.people.adult + slots.people.child + slots.people.infant;
-        return String(total);
+        const people = slots.people;
+        if (!people) return '';
+        return (['adult', 'child', 'infant'] as const)
+          .filter((key) => people[key] > 0)
+          .map((key) =>
+            t(`card.ready.${key}${people[key] === 1 ? 'One' : ''}`).replace(
+              '{n}',
+              String(people[key]),
+            ),
+          )
+          .join(' · ');
       }
       case 'budget':
         if (!slots.budget?.amount) return '';
-        return new Intl.NumberFormat(lang, {
+        return `${new Intl.NumberFormat(lang, {
           style: 'currency',
           currency: slots.budget.currency,
           maximumFractionDigits: 0,
-        }).format(slots.budget.amount);
+        }).format(slots.budget.amount)} ${t(`card.ready.${slots.budget.basis}`)}`;
       case 'transport':
-        return slots.transport.map((mode) => t(`transport.${mode}`)).join(' / ');
+        return chips(slots.transport.map((mode) => t(`transport.${mode}`)));
       case 'prefs':
-        return slots.prefs.map((pref) => t(`pref.${pref}`)).join(' / ');
+        return chips(slots.prefs.map((pref) => t(`pref.${pref}`)));
       case 'musts':
-        return slots.musts.join(' / ');
+        return chips(slots.musts);
     }
   }
 
+  const row =
+    'rise border-ink/6 flex min-h-11 w-full items-center gap-3 border-b px-1 py-2 text-left last:border-b-0';
+
   return (
     <div className={CARD}>
-      <div className="flex flex-col">
-        {SUMMARY_STEPS.map((step) => (
-          <div
-            key={step}
-            className="border-fill-soft flex items-center gap-3 border-b py-2.5 last:border-b-0"
-          >
-            <span className="text-muted w-20 flex-none text-[12px]">{t(`slot.${step}`)}</span>
-            <span className="text-ink flex-1 text-[14px] font-semibold">
-              {value(step) || (
-                <span className="text-muted font-normal">{t('chat.notDecided')}</span>
-              )}
-            </span>
-            {/* Re-opens that step's card. The server accepts the new answer (flow.can_answer). */}
-            {onEdit && (
-              <button
-                type="button"
-                className="text-muted-strong flex-none border-0 bg-transparent text-[12px] underline"
-                disabled={disabled}
-                onClick={() => onEdit(step)}
-              >
-                {t('card.change')}
-              </button>
-            )}
-          </div>
-        ))}
+      <div className="flex items-center justify-between">
+        <span className="text-ink text-[16px] font-bold">{t('card.ready.title')}</span>
+        <span className="text-muted-strong flex items-center gap-1 text-[12px] font-semibold">
+          <CircleCheck size={14} aria-hidden="true" />
+          {t('card.ready.count')
+            .replace('{n}', String(set))
+            .replace('{total}', String(SUMMARY_STEPS.length))}
+        </span>
       </div>
-      <div className={ACTIONS}>
-        {onBack && <BackButton onBack={onBack} disabled={disabled} />}
-        <button type="button" className={PRIMARY} disabled={disabled} onClick={onGenerate}>
+      <div className="flex flex-col">
+        {SUMMARY_STEPS.map((step, i) => {
+          const Icon = SUMMARY_ICONS[step];
+          const shown = value(step);
+          const body = (
+            <>
+              <Icon
+                size={17}
+                strokeWidth={1.8}
+                className="text-muted flex-none"
+                aria-hidden="true"
+              />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-muted text-[11px]">{t(`slot.${step}`)}</span>
+                {shown ? (
+                  <span className="text-ink text-[14px] font-semibold">{shown}</span>
+                ) : (
+                  <span className="text-muted text-[14px] italic">{t('card.ready.weDecide')}</span>
+                )}
+              </span>
+              {onEdit && (
+                <Pencil size={14} className="text-muted flex-none opacity-70" aria-hidden="true" />
+              )}
+            </>
+          );
+          const style = { '--i': i + 1 } as CSSProperties;
+          // The whole row re-opens that step's card. The server accepts the new answer (flow.can_answer).
+          return onEdit ? (
+            <button
+              key={step}
+              type="button"
+              className={`${row} hover:bg-ink/4 rounded-none border-x-0 border-t-0 bg-transparent transition-colors`}
+              style={style}
+              aria-label={t('card.ready.edit').replace('{what}', t(`slot.${step}`))}
+              disabled={disabled}
+              onClick={() => onEdit(step)}
+            >
+              {body}
+            </button>
+          ) : (
+            <div key={step} className={row} style={style}>
+              {body}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-2">
+        {onBack && (
+          <button
+            type="button"
+            className="text-muted-strong border-ink/15 flex h-11 w-11 flex-none items-center justify-center rounded-xl border bg-white/70"
+            aria-label={t('card.back')}
+            disabled={disabled}
+            onClick={onBack}
+          >
+            <ChevronLeft size={18} aria-hidden="true" />
+          </button>
+        )}
+        <button
+          type="button"
+          className={`${PRIMARY} flex flex-1 items-center justify-center gap-2`}
+          disabled={disabled}
+          onClick={onGenerate}
+        >
+          <Sparkles size={16} aria-hidden="true" />
           {t('card.generate')}
         </button>
       </div>

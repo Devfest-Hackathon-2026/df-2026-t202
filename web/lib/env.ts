@@ -7,11 +7,14 @@
 // rejected outright (the map tolerated it, Places photo URLs did not).
 const clean = (value: string | undefined, fallback = '') => value?.trim() || fallback;
 
+const projectId = clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, 'demo-trip-planner');
+
 export const env = {
   firebase: {
     apiKey: clean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
-    authDomain: clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
-    projectId: clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, 'demo-trip-planner'),
+    // Every Firebase project has this domain; without one, Google sign-in fails to start.
+    authDomain: clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, `${projectId}.firebaseapp.com`),
+    projectId,
     appId: clean(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
   },
   mapsBrowserKey: clean(process.env.NEXT_PUBLIC_MAPS_BROWSER_KEY),

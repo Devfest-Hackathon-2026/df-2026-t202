@@ -2,8 +2,9 @@
 
 slots + full chat -> draft Plan with Gemini (GEMINI_MODEL_PLANNER) and prompts/planner.md. No grounding tools and the
 model's default thinking level for the draft: plan quality over speed (person_b_WHY.md, decisions 16-18). Repair
-rounds only edit a few stops, so they use LOW thinking and a shorter timeout (the whole run must fit Cloud Run's 300 s).
-The output is validated as `Plan` by llm.generate_json (one retry on invalid JSON, then llm.LLMError).
+rounds only edit a few stops: LOW thinking, a shorter timeout, and the model returns only the days it changed
+(`PlanFix`, D83), because writing out the whole plan again was most of a repair's ~30 s.
+Outputs are validated by llm.generate_json (one retry on invalid JSON, then llm.LLMError).
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from datetime import date
 from functools import cache
 from pathlib import Path
 
-from app.models import Plan, Slots
+from app.models import Day, Plan, PlanFix, Slots
 from app.services import llm
 
 PROMPT_FILE = Path(__file__).parent.parent / "prompts" / "planner.md"
@@ -23,11 +24,18 @@ FIX_TIMEOUT_SECONDS = 45  # per attempt, LOW thinking
 MAX_CHAT_MESSAGES = 60  # the per-trip message limit
 
 FIX_TASK = (
-    "Revise the plan in `plan` so it solves the problems in `warnings`. Keep everything else as it is: "
-    "same days, same must-visit places, same stop ids where the stop stays. A stop that is closed on arrival moves to "
-    "a time inside its opening hours (given in the warning) or is swapped for a nearby place that is open then. "
-    "Return the whole plan."
+    "Revise the days in `plan` so they solve the problems in `warnings`. Change as little as possible: same must-visit "
+    "places, same stop ids for stops that stay, and keep the rules for times, meals, pace and legs. A stop that is "
+    "closed on arrival moves to a time inside its opening hours (given in the warning) or is swapped for a nearby "
+    "place that is open then. A place that couldn't be found is replaced with a real place that fits the same time "
+    "and purpose. "
+    "Reply with only the days you changed: for each, its `day` number and its complete new list of `stops` in order, "
+    "re-timed, unchanged stops included as they are. Leave out days you didn't change."
 )
+# What the repair call needs to see: the days and stops, without Routes polylines, videos or our warnings.
+FIX_INPUT = {
+    "days": {"__all__": {"stops": {"__all__": {"placeId": True, "videoIds": True, "warn": True, "leg": {"polyline"}}}}}
+}
 
 
 @cache
@@ -70,16 +78,21 @@ def _clean(plan: Plan, lang: str) -> Plan:
         for item in [plan.cost, *plan.cost.items]:
             _range(item)
     for day in plan.days:
-        for i, stop in enumerate(day.stops):
-            stop.placeId = None  # filled from Places by the pipeline; lat/lng stay as a rough guess (D50)
-            stop.videoIds = []
-            stop.warn = None
-            if stop.leg:
-                stop.leg.polyline = None  # filled from Routes by the pipeline
-                stop.leg.estimate = stop.leg.estimate or stop.leg.mode in ("FLIGHT", "FERRY")
-            if i == len(day.stops) - 1:
-                stop.leg = None  # the last stop of a day goes nowhere
+        _clean_day(day)
     return plan
+
+
+def _clean_day(day: Day) -> None:
+    """Fields the pipeline fills: never trust the model's values."""
+    for i, stop in enumerate(day.stops):
+        stop.placeId = None  # filled from Places by the pipeline; lat/lng stay as a rough guess (D50)
+        stop.videoIds = []
+        stop.warn = None
+        if stop.leg:
+            stop.leg.polyline = None  # filled from Routes by the pipeline
+            stop.leg.estimate = stop.leg.estimate or stop.leg.mode in ("FLIGHT", "FERRY")
+        if i == len(day.stops) - 1:
+            stop.leg = None  # the last stop of a day goes nowhere
 
 
 async def draft(slots: Slots, messages: list[dict], lang: str) -> Plan:
@@ -98,12 +111,30 @@ async def draft(slots: Slots, messages: list[dict], lang: str) -> Plan:
 
 
 async def fix(plan: Plan, warnings: list[str], lang: str) -> Plan:
-    """One repair round: return a revised Plan that addresses the warnings. Raises llm.LLMError."""
+    """One repair round: return a copy of `plan` with the days the Planner changed. Raises llm.LLMError."""
     user = json.dumps(
-        {"task": FIX_TASK, "plan": plan.model_dump(mode="json"), "warnings": warnings},
+        {
+            "task": FIX_TASK,
+            "plan": plan.model_dump(mode="json", include={"days"}, exclude=FIX_INPUT),
+            "warnings": warnings,
+        },
         ensure_ascii=False,
     )
-    revised = await llm.generate_json(
-        llm.MODEL_PLANNER, system_prompt(lang), user, Plan, thinking="LOW", timeout=FIX_TIMEOUT_SECONDS
+    out = await llm.generate_json(
+        llm.MODEL_PLANNER, system_prompt(lang), user, PlanFix, thinking="LOW", timeout=FIX_TIMEOUT_SECONDS
     )
-    return _clean(revised, lang)
+    return merge(plan, out)
+
+
+def merge(plan: Plan, out: PlanFix) -> Plan:
+    """Swap in the changed days. Unknown day numbers and empty days are ignored (a repair never deletes a day)."""
+    revised = plan.model_copy(deep=True)
+    days = {day.day: day for day in revised.days}
+    for changed in out.days:
+        day = days.get(changed.day)
+        if day and changed.stops:
+            day.stops = changed.stops
+            for i, stop in enumerate(day.stops, 1):
+                stop.id = f"s-{day.day}{i:02d}"  # unique: the pipeline keys opening hours and types by stop id
+            _clean_day(day)
+    return revised

@@ -88,6 +88,7 @@ def fake_world(monkeypatch, replace_with=None):
             day.stops = [s for s in day.stops if s.name != "Fake Cafe"]
             if replace_with:
                 day.stops.insert(2, stop("s-103", "12:00", replace_with, None, Leg(mode="DRIVE", minutes=60)))
+        log["fix_seen"] = plan
         return new
 
     async def search_text(query, lang, near=None):
@@ -466,6 +467,29 @@ def test_one_closed_stop_triggers_a_repair_with_its_opening_hours(monkeypatch):
 
     closed = [w for w in log["fix"][-1] if "closed" in w]
     assert closed and "Opening hours: Day2: 10:00 AM - 5:00 PM" in closed[0]  # Wednesday, Monday-first list
+
+
+def test_missing_place_and_closed_stop_share_one_repair_call(monkeypatch):
+    log = fake_world(monkeypatch, replace_with="Kurokawa Onsen")
+    hours = {**OPEN_10_TO_17, "weekdayDescriptions": [f"Day{i}: 10:00 AM - 5:00 PM" for i in range(7)]}
+    monkeypatch.setitem(PLACES, "千穂の家", {**PLACES["千穂の家"], "openingHours": hours})
+    original = draft_plan
+
+    async def draft(slots, messages, lang):
+        plan = original()
+        plan.days[0].stops[1].kind, plan.days[0].stops[1].time = "food", "17:30"  # closed at 17:30
+        return plan
+
+    monkeypatch.setattr(planner, "draft", draft)
+    asyncio.run(pipeline.run("t1"))
+
+    assert len(log["fix"]) == 1  # one Gemini repair, not one per problem (D83)
+    asks = log["fix"][0]
+    assert any("Fake Cafe" in a for a in asks) and any("closed" in a for a in asks)
+    seen = [s.name for s in log["fix_seen"].days[0].stops]
+    assert "Fake Cafe" in seen  # the Planner sees where the missing stop was, to replace it in place
+    assert log["fix_seen"].days[0].stops[0].leg.polyline == "abc"  # ...and the real travel times
+    assert log["progress"] == ["routes", "videos"]
 
 
 def test_no_repair_round_late_in_the_request(monkeypatch):

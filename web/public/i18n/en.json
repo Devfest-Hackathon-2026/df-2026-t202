@@ -10,20 +10,20 @@
     "promptPlaceholder": "Tell me in your own words",
     "suggestion": {
       "a": {
-        "label": "Kyushu, 3 nights",
-        "send": "Kyushu for 4 people, 3 nights, hot springs and night views"
+        "label": "Kyushu road trip, 4 days",
+        "send": "A 4-day road trip around Kyushu from Fukuoka, hot springs and night views"
       },
       "b": {
-        "label": "Nagasaki night view",
-        "send": "A weekend in Nagasaki for the night view"
+        "label": "Seoul food weekend",
+        "send": "A weekend in Seoul, 2 nights, for street food and markets"
       },
       "c": {
-        "label": "Fukuoka food",
-        "send": "Street food in Fukuoka"
+        "label": "Paris, 5 days",
+        "send": "5 days in Paris for museums, cafés and walking the old streets"
       },
       "d": {
-        "label": "You decide",
-        "send": "You decide for me"
+        "label": "Surprise me",
+        "send": "Surprise me: suggest a trip for me"
       }
     },
     "feature": {
@@ -45,7 +45,9 @@
     "account": "Account",
     "signInGuest": "Continue as a guest (local only)",
     "language": "Language",
-    "languageNote": "New trips use this language. Trips you already started keep theirs."
+    "languageNote": "New trips use this language. Trips you already started keep theirs.",
+    "currency": "Currency",
+    "currencyNote": "Used for budgets and costs on new trips."
   },
   "state": {
     "loading": "Loading…",
@@ -134,11 +136,28 @@
       "placeholder": "Add a place"
     },
     "change": "Change",
-    "transport": {
-      "origin": "Leaving from (station, airport, ...)"
-    },
     "back": "Back",
-    "editing": "Changing {what}"
+    "editing": "Changing {what}",
+    "ready": {
+      "title": "Your trip",
+      "count": "{n} of {total} set",
+      "weDecide": "We'll pick for you",
+      "edit": "Change {what}",
+      "adult": "{n} adults",
+      "adultOne": "1 adult",
+      "child": "{n} children",
+      "childOne": "1 child",
+      "infant": "{n} infants",
+      "infantOne": "1 infant",
+      "person": "per person",
+      "total": "in total"
+    },
+    "transport": {
+      "startTitle": "Where does your trip start?",
+      "startHint": "An airport, station or hotel and Day 1 starts there. Just a city or area? Then we start at the first sight.",
+      "startPlaceholder": "e.g. an airport or hotel",
+      "notDecided": "Not decided yet"
+    }
   },
   "transport": {
     "shinkansen": "Shinkansen",
@@ -164,13 +183,14 @@
     "notDecided": "Not decided yet",
     "send": "Send",
     "input": "Message",
-    "inputPlaceholder": "Type anything"
+    "inputPlaceholder": "Type anything",
+    "typing": "Writing a reply…"
   },
   "plan": {
     "title": "Your trip",
     "placeholder": "The itinerary comes next.",
     "progress": {
-      "spots": "Finding spots…",
+      "spots": "Planning your days…",
       "routes": "Calculating travel times…",
       "videos": "Finding videos…",
       "done": "Done"
@@ -184,7 +204,16 @@
     "allDays": "All days",
     "day": "Day {n}",
     "stats": "{stops} stops · {minutes} travelling",
-    "checks": "Check before you go"
+    "checks": "Check before you go",
+    "building": "Building your plan",
+    "eta": "Usually 30–60 seconds",
+    "progressCount": "{n} / {total}",
+    "progressHint": {
+      "spots": "Gemini drafts the route, then Google Maps checks every place",
+      "routes": "Drive, train and ferry times between stops",
+      "videos": "A YouTube Short for each stop"
+    },
+    "stopsCount": "{n} stops"
   },
   "share": {
     "title": "Shared trip",

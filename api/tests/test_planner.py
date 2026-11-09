@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from app.agents import planner
-from app.models import Plan, Slots
+from app.models import DayFix, Plan, PlanFix, Slots
 from app.services import llm
 
 ROOT = Path(__file__).parents[1]
@@ -13,7 +13,7 @@ SLOTS = Slots.model_validate_json((ROOT / "tests/fixtures/demo_slots.json").read
 PLAN_JSON = (ROOT / "app/fixtures/demo_plan.json").read_text(encoding="utf-8")
 
 
-def fake_gemini(monkeypatch, plan: Plan):
+def fake_gemini(monkeypatch, plan: Plan | PlanFix):
     calls = []
 
     async def generate_json(model, system, user, schema, **kwargs):
@@ -67,15 +67,30 @@ def test_draft_cleans_fields_the_pipeline_fills(monkeypatch):
     assert out.language == "ja"
 
 
-def test_fix_sends_plan_and_warnings(monkeypatch):
+def test_fix_sends_a_trimmed_plan_and_merges_only_the_changed_days(monkeypatch):
     plan = Plan.model_validate_json(PLAN_JSON)
-    calls = fake_gemini(monkeypatch, plan)
+    plan.days[0].stops[0].leg.polyline = "long-polyline"
+    plan.days[0].stops[0].videoIds = ["v1"]
+    new_day2 = [s.model_copy(deep=True) for s in plan.days[1].stops[:2]]
+    new_day2[0].placeId, new_day2[-1].leg = "made-up", new_day2[0].leg.model_copy()  # the model's mistakes
+    out = PlanFix(days=[DayFix(day=2, stops=new_day2), DayFix(day=9, stops=new_day2), DayFix(day=3, stops=[])])
+    calls = fake_gemini(monkeypatch, out)
 
-    asyncio.run(planner.fix(plan, ["Day 2: 6 h of driving"], "en"))
+    revised = asyncio.run(planner.fix(plan, ["Day 2: 6 h of driving"], "en"))
 
-    assert calls[0]["user"]["warnings"] == ["Day 2: 6 h of driving"]
-    assert calls[0]["user"]["plan"]["title"] == plan.title
-    assert calls[0]["thinking"] == "LOW" and calls[0]["timeout"] == planner.FIX_TIMEOUT_SECONDS  # repairs are small
+    sent = calls[0]
+    assert sent["user"]["warnings"] == ["Day 2: 6 h of driving"]
+    assert set(sent["user"]["plan"]) == {"days"}  # no title, cost or checks: the repair only touches days
+    first = sent["user"]["plan"]["days"][0]["stops"][0]
+    assert "polyline" not in first["leg"] and "videoIds" not in first and "placeId" not in first
+    assert sent["thinking"] == "LOW" and sent["timeout"] == planner.FIX_TIMEOUT_SECONDS  # repairs are small
+
+    assert [s.id for s in revised.days[1].stops] == ["s-201", "s-202"]
+    assert revised.days[1].stops[0].placeId is None and revised.days[1].stops[-1].leg is None  # cleaned
+    assert revised.days[0] == plan.days[0]  # unchanged days keep their verified data
+    assert len(revised.days[2].stops) == len(plan.days[2].stops)  # an empty day is ignored, not deleted
+    assert len(revised.days) == len(plan.days)  # an unknown day 9 is ignored
+    assert len(plan.days[1].stops) > 2  # the input plan is not modified
 
 
 def test_worst_case_gemini_time_fits_cloud_run():

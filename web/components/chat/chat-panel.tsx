@@ -1,10 +1,12 @@
 'use client';
 
-import { ArrowUp } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowUp, Check } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { post } from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { useStickToBottom } from '@/lib/use-stick-to-bottom';
 import { STEP_ORDER, type Message, type StepKey, type Trip } from '@/lib/types';
+import { CardShell, Messages, TypingBubble, useAwaitingReply, useFirstCardDelay } from './messages';
 import { QuestionCard } from './question-card';
 
 const STATE_TEXT = 'px-4 py-2 text-[13px] text-white/70 desk:px-[18px]';
@@ -28,16 +30,18 @@ export function ChatPanel({
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const bottom = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length]);
 
   const lastAi = [...messages].reverse().find((m) => m.role === 'ai');
   const card = lastAi?.ui ?? null;
   const planning = trip?.status === 'planning';
   const busy = sending || planning;
+  const cardKey = `${lastAi?.id}-${card?.type}`;
+  const cardDelay = useFirstCardDelay(cardKey, messages.length);
+  const typing = useAwaitingReply(messages, sending, failed != null) && !planning;
+
+  // Follow the conversation down as it grows; a new message always brings it back to the bottom.
+  const { scroller, content, toBottom } = useStickToBottom<HTMLDivElement, HTMLDivElement>();
+  useEffect(() => toBottom(), [messages.length, cardKey, typing, planning, toBottom]);
 
   async function send(body: Parameters<typeof post>[1]) {
     setSending(true);
@@ -77,44 +81,41 @@ export function ChatPanel({
           <span
             key={step}
             className={[
-              'bg-surface flex-none rounded-full border px-3 py-1.5 text-xs whitespace-nowrap',
+              'flex flex-none items-center gap-1 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap',
               trip.slots.status[step] === 'done'
-                ? 'border-ink text-ink font-semibold'
-                : 'border-line text-muted-strong',
+                ? 'border-white/20 bg-white/15 font-semibold text-white'
+                : 'border-white/10 bg-transparent text-white/55',
             ].join(' ')}
           >
+            {trip.slots.status[step] === 'done' && (
+              <Check size={12} strokeWidth={2.6} aria-hidden="true" />
+            )}
             {t(`slot.${step}`)}
-            {trip.slots.status[step] === 'done' ? ' ✓' : ''}
           </span>
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 pb-2 desk:px-[18px]">
-        {messages.length === 0 && <p className={STATE_TEXT}>{t('state.empty')}</p>}
-        {messages.map((m) => (
-          <p
-            key={m.id}
-            className={
-              m.role === 'ai'
-                ? 'text-ink max-w-[85%] self-start text-[15px] leading-[1.65] whitespace-pre-line'
-                : 'bg-ink text-on-accent max-w-[85%] self-end rounded-[18px_18px_4px_18px] px-3.5 py-2 text-[15px] leading-[1.65] whitespace-pre-line'
-            }
-          >
-            {m.text}
-          </p>
-        ))}
-        {card && !busy && (
-          <QuestionCard
-            card={card}
-            slots={trip.slots}
-            disabled={busy}
-            onAnswer={(step: StepKey, value: unknown) => send({ type: 'answer', step, value })}
-            onGenerate={generate}
-          />
-        )}
-        {planning && <p className={STATE_TEXT}>{t(`plan.progress.${trip.progress ?? 'spots'}`)}</p>}
-        {failed && <p className={`${STATE_TEXT} text-accent`}>{t('state.sendFailed')}</p>}
-        <div ref={bottom} />
+      <div ref={scroller} className="noscroll min-h-0 flex-1 overflow-y-auto px-4 desk:px-[18px]">
+        <div ref={content} className="flex flex-col gap-2.5 pt-4 pb-5">
+          {messages.length === 0 && <p className={STATE_TEXT}>{t('state.empty')}</p>}
+          <Messages messages={messages} variant="sheet" />
+          {card && !planning && (
+            <CardShell key={cardKey} leaving={sending} delay={cardDelay}>
+              <QuestionCard
+                card={card}
+                slots={trip.slots}
+                disabled={busy}
+                onAnswer={(step: StepKey, value: unknown) => send({ type: 'answer', step, value })}
+                onGenerate={generate}
+              />
+            </CardShell>
+          )}
+          {typing && <TypingBubble variant="sheet" />}
+          {planning && (
+            <p className={STATE_TEXT}>{t(`plan.progress.${trip.progress ?? 'spots'}`)}</p>
+          )}
+          {failed && <p className={`${STATE_TEXT} text-accent`}>{t('state.sendFailed')}</p>}
+        </div>
       </div>
 
       <form

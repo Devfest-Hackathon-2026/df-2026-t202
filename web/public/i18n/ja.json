@@ -10,20 +10,20 @@
     "promptPlaceholder": "自由に書いてください",
     "suggestion": {
       "a": {
-        "label": "九州 3泊4日",
-        "send": "4人で九州を3泊4日、温泉と夜景"
+        "label": "九州ドライブ 4日間",
+        "send": "福岡発、九州を4日間ドライブ。温泉と夜景を楽しみたい"
       },
       "b": {
-        "label": "長崎の夜景",
-        "send": "週末に長崎で夜景"
+        "label": "ソウル食べ歩き週末",
+        "send": "ソウルで2泊の週末。屋台や市場で食べ歩きしたい"
       },
       "c": {
-        "label": "福岡グルメ",
-        "send": "福岡で屋台グルメ"
+        "label": "パリで5日間",
+        "send": "パリで5日間。美術館とカフェと旧市街の散歩を楽しみたい"
       },
       "d": {
         "label": "おまかせ",
-        "send": "おまかせで考えて"
+        "send": "行き先はおまかせ。おすすめの旅を提案して"
       }
     },
     "feature": {
@@ -45,7 +45,9 @@
     "account": "アカウント",
     "signInGuest": "ゲストで試す（ローカル専用）",
     "language": "言語",
-    "languageNote": "新しい旅行からこの言語になります。作成済みの旅行はそのままです。"
+    "languageNote": "新しい旅行からこの言語になります。作成済みの旅行はそのままです。",
+    "currency": "通貨",
+    "currencyNote": "新しい旅の予算と費用に使います。"
   },
   "state": {
     "loading": "読み込んでいます…",
@@ -134,11 +136,28 @@
       "placeholder": "場所を追加"
     },
     "change": "変更",
-    "transport": {
-      "origin": "出発地　博多駅、福岡空港など"
-    },
     "back": "戻る",
-    "editing": "{what}を選び直しています"
+    "editing": "{what}を選び直しています",
+    "ready": {
+      "title": "旅の内容",
+      "count": "{total}項目中{n}項目",
+      "weDecide": "おまかせ",
+      "edit": "{what}を変更",
+      "adult": "大人{n}人",
+      "adultOne": "大人1人",
+      "child": "子ども{n}人",
+      "childOne": "子ども1人",
+      "infant": "乳幼児{n}人",
+      "infantOne": "乳幼児1人",
+      "person": "(1人あたり)",
+      "total": "(合計)"
+    },
+    "transport": {
+      "startTitle": "旅はどこから始まりますか？",
+      "startHint": "空港・駅・ホテルなら1日目はそこから。都市名やエリアだけなら、最初の観光地から始めます。",
+      "startPlaceholder": "例：福岡空港、博多駅",
+      "notDecided": "まだ決めていない"
+    }
   },
   "transport": {
     "shinkansen": "新幹線",
@@ -164,13 +183,14 @@
     "notDecided": "まだ決めていない",
     "send": "送信",
     "input": "メッセージ",
-    "inputPlaceholder": "自由に入力できます"
+    "inputPlaceholder": "自由に入力できます",
+    "typing": "返信を書いています…"
   },
   "plan": {
     "title": "あなたの旅行",
     "placeholder": "旅程はこれから実装します。",
     "progress": {
-      "spots": "スポットを探しています…",
+      "spots": "日程を組み立てています…",
       "routes": "移動時間を計算しています…",
       "videos": "動画を探しています…",
       "done": "完了"
@@ -184,7 +204,16 @@
     "allDays": "全日",
     "day": "{n}日目",
     "stats": "{stops}スポット · 移動 {minutes}",
-    "checks": "出発前に確認すること"
+    "checks": "出発前に確認すること",
+    "building": "プランを作成中",
+    "eta": "通常30〜60秒ほどかかります",
+    "progressCount": "{n} / {total}",
+    "progressHint": {
+      "spots": "Geminiがルートを考え、Googleマップで実在を確認",
+      "routes": "スポット間の車・電車・フェリーの時間",
+      "videos": "スポットごとのYouTubeショート"
+    },
+    "stopsCount": "{n}か所"
   },
   "share": {
     "title": "共有された旅行",

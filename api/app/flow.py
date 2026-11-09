@@ -43,10 +43,7 @@ QUESTIONS: dict[str, dict[str, str]] = {
     "dates": {"en": "When do you want to go?", "ja": "いつ行きますか？"},
     "people": {"en": "How many people are going?", "ja": "何人で行きますか？"},
     "budget": {"en": "What is your budget?", "ja": "予算はどのくらいですか？"},
-    "transport": {
-        "en": "How do you want to travel, and where do you start from?",
-        "ja": "移動手段と出発地を教えてください。",
-    },
+    "transport": {"en": "How will you get around?", "ja": "現地での移動手段は？"},
     "prefs": {"en": "What kind of trip do you want?", "ja": "どんな旅にしたいですか？"},
     "musts": {"en": "Any places you must visit?", "ja": "必ず行きたい場所はありますか？"},
     READY: {"en": "Your plan is ready to build!", "ja": "プランを作成する準備ができました！"},
@@ -119,7 +116,7 @@ def card_for(step: str, slots: Slots) -> UiCard:
     if step == "prefs":
         return UiCard(type="prefs", options=PREF_OPTIONS)
     if step == "budget":
-        currency = slots.budget.currency if slots.budget else currency_for(_country(slots))
+        currency = slots.currency or (slots.budget.currency if slots.budget else currency_for(_country(slots)))
         chips = BUDGET_CHIPS.get(currency, DEFAULT_BUDGET_CHIPS)
         return UiCard(type="budget", options=[str(c) for c in chips])
     return UiCard(type=step)  # dest, dates, people, musts, ready
@@ -151,6 +148,9 @@ def _sync_currency(slots: Slots, old_country: str | None) -> None:
     """When the destination changes, the budget currency follows it, unless the user already set an amount.
     Exception: an amount set before any destination got the placeholder currency_for(None); the new
     destination's currency replaces it (the amount was meant in local money, not USD)."""
+    if slots.currency:  # the user picked a currency in settings: it never follows the destination
+        slots.budget = (slots.budget or Budget()).model_copy(update={"currency": slots.currency})
+        return
     b = slots.budget
     if slots.status.get("budget") == "done" and b and b.amount is not None:
         if old_country or b.currency != currency_for(None):
@@ -227,7 +227,11 @@ def _set_budget(slots: Slots, value: Any) -> None:
     """value: {"basis": "person" | "total", "amount": n, "currency"?: "JPY"}. Currency defaults to the destination's."""
     if not isinstance(value, dict):
         raise TypeError("budget must be an object")
-    currency = value.get("currency") or (slots.budget.currency if slots.budget else currency_for(_country(slots)))
+    currency = (
+        slots.currency
+        or value.get("currency")
+        or (slots.budget.currency if slots.budget else currency_for(_country(slots)))
+    )
     budget = Budget.model_validate({**value, "currency": currency})
     if budget.amount is not None and budget.amount < 0:
         raise ValueError("amount must be >= 0")
@@ -237,12 +241,15 @@ def _set_budget(slots: Slots, value: Any) -> None:
 def _set_transport(slots: Slots, value: Any) -> None:
     """value: {"transport": [...], "origin": PlaceRef | null}, or just a list of modes."""
     if isinstance(value, list):
-        modes, origin = value, None
-    else:
-        modes, origin = value.get("transport"), value.get("origin")
+        slots.transport = Slots.model_validate({"transport": value or ["any"]}).transport
+        return
+    modes = value.get("transport")
     slots.transport = Slots.model_validate({"transport": modes or ["any"]}).transport
-    if origin:
-        slots.origin = _place(origin)
+    # The card's start-point question is the answer: a place, or null for "not decided yet"
+    # (an area was already turned into null by the lookup). It replaces any earlier start.
+    if "origin" in value:
+        origin = value.get("origin")
+        slots.origin = _place(origin) if origin else None
 
 
 def _place(value: Any) -> PlaceRef:
@@ -309,6 +316,8 @@ def merge_updates(
     if updates.budget is not None:
         # Only the fields Gemini set, so the destination's currency is kept unless the user named one.
         _try(new, "budget", _overlay(new.budget, updates.budget))
+        if new.currency and new.budget:  # the settings currency wins over one named in the chat
+            new.budget = new.budget.model_copy(update={"currency": new.currency})
     if updates.transport is not None:
         _try(new, "transport", updates.transport)
     if updates.prefs is not None:
@@ -411,6 +420,52 @@ async def search_place(query: str, lang: str) -> PlaceRef | None:
     try:
         result = await search_text(query, lang)
         return PlaceRef.model_validate(result) if result else None
+    except (httpx.HTTPError, RuntimeError, ValidationError) as e:
+        log.warning(json.dumps({"msg": "place_lookup_failed", "err": type(e).__name__}))
+        raise PlaceLookupError from e
+
+
+# Google Places types that describe an area, not a spot you can stand at.
+AREA_TYPES = {
+    "country",
+    "administrative_area_level_1",
+    "administrative_area_level_2",
+    "administrative_area_level_3",
+    "locality",
+    "sublocality",
+    "sublocality_level_1",
+    "postal_town",
+    "neighborhood",
+    "colloquial_area",
+    "archipelago",
+    "continent",
+    "political",
+    "geocode",
+}
+
+
+def is_area(place: dict) -> bool:
+    """True for a city, state, region or country; False for an airport, station, hotel or address."""
+    primary = place.get("primaryType")
+    if primary:
+        return primary in AREA_TYPES
+    types = set(place.get("types") or [])
+    return bool(types) and types <= AREA_TYPES
+
+
+async def search_start(query: str, lang: str) -> PlaceRef | None:
+    """Resolve where the trip starts. Only a specific place counts (airport, station, hotel, address):
+    Day 1 begins there. A city, state or region returns None, so Day 1 begins at the first attraction.
+    Raises PlaceLookupError when the lookup itself fails, like search_place."""
+    try:
+        from app.services.places import search_text
+    except ImportError:
+        search_text = _search_text_fallback
+    try:
+        result = await search_text(query, lang)
+        if not result or is_area(result):
+            return None
+        return PlaceRef.model_validate(result)
     except (httpx.HTTPError, RuntimeError, ValidationError) as e:
         log.warning(json.dumps({"msg": "place_lookup_failed", "err": type(e).__name__}))
         raise PlaceLookupError from e

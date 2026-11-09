@@ -54,6 +54,8 @@ export interface Slots {
   prefs: string[];
   musts: string[];
   status: Record<StepKey, SlotStatus>;
+  /** The user's currency from settings; when set, the budget always uses it. */
+  currency?: string | null;
 }
 
 export interface UiCard {

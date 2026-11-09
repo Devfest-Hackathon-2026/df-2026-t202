@@ -1,13 +1,21 @@
 'use client';
 
 import { ArrowUp, Pencil } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { QuestionCard } from '@/components/chat/question-card';
-import { Messages } from '@/components/chat/messages';
+import {
+  CardShell,
+  Messages,
+  TypingBubble,
+  useAwaitingReply,
+  useFirstCardDelay,
+} from '@/components/chat/messages';
 import { LanguageNote } from '@/components/language-note';
 import { PlanProgress } from '@/components/plan/plan-panel';
 import { useT } from '@/lib/i18n';
+import { takeFirstMessage } from '@/lib/first-message';
 import { useChatActions } from '@/lib/use-chat';
+import { useStickToBottom } from '@/lib/use-stick-to-bottom';
 import {
   STEP_ORDER,
   type Message,
@@ -25,7 +33,22 @@ export function PhotoChat({ trip, messages }: { trip: Trip; messages: Message[] 
   const t = useT();
   const [text, setText] = useState('');
   const { send, generate, sending, failed } = useChatActions(trip.id);
-  const bottom = useRef<HTMLDivElement>(null);
+
+  // The sentence typed on the home screen: shown at once as our bubble, then sent from here.
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => {
+    const first = takeFirstMessage(trip.id);
+    if (!first) return;
+    setPending(first);
+    void send({ type: 'text', text: first });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the trip opens
+  }, [trip.id]);
+  // Swap the stand-in bubble for the real message the moment it arrives from Firestore.
+  const delivered =
+    pending != null && messages.some((m) => m.role === 'user' && m.text === pending);
+  useEffect(() => {
+    if (delivered) setPending(null);
+  }, [delivered]);
 
   const lastAi = [...messages].reverse().find((m) => m.role === 'ai');
   const serverCard = lastAi?.ui ?? null;
@@ -60,20 +83,13 @@ export function PhotoChat({ trip, messages }: { trip: Trip; messages: Message[] 
     .find((step) => asked.has(step));
   const planning = trip.status === 'planning';
   const busy = sending || planning;
+  const typing = useAwaitingReply(messages, sending || pending != null, failed) && !planning;
+  const cardKey = `${lastAi?.id}-${back ?? ''}-${card?.type}`;
+  const cardDelay = useFirstCardDelay(cardKey, messages.length);
 
-  // Keep the newest message, and the card under it, in view. A card can be taller than the
-  // room left, and it lays out after this runs, so scroll again on the next frame and once more
-  // when its own height settles.
-  useEffect(() => {
-    const toBottom = () => bottom.current?.scrollIntoView({ block: 'end' });
-    toBottom();
-    const frame = requestAnimationFrame(toBottom);
-    const timer = setTimeout(toBottom, 160);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(timer);
-    };
-  }, [messages.length, card?.type, planning]);
+  // Follow the conversation down as it grows; a new message always brings it back to the bottom.
+  const { scroller, content, toBottom } = useStickToBottom<HTMLDivElement, HTMLDivElement>();
+  useEffect(() => toBottom(), [messages.length, cardKey, typing, planning, toBottom]);
 
   function submit() {
     const value = text.trim();
@@ -84,38 +100,54 @@ export function PhotoChat({ trip, messages }: { trip: Trip; messages: Message[] 
 
   return (
     <div className="mx-auto flex w-full max-w-[760px] min-h-0 flex-1 flex-col gap-3 px-4">
-      <div className="flex min-h-0 flex-1 flex-col justify-start gap-3 overflow-y-auto py-2">
-        <LanguageNote tripLanguage={trip.language} />
-        <Messages messages={messages} variant="photo" />
-        {card && !busy && back && (
-          <p className="m-0 flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-[12px] text-white backdrop-blur-xl">
-            <Pencil size={13} strokeWidth={1.8} aria-hidden="true" />
-            {t('card.editing').replace('{what}', t(`slot.${back}`))}
-          </p>
-        )}
-        {card && !busy && (
-          <QuestionCard
-            card={card}
-            slots={trip.slots}
-            disabled={busy}
-            onBack={previous ? () => setBack(previous) : undefined}
-            onPlanMusts={setPlannedMusts}
-            plannedMusts={plannedMusts}
-            onEdit={(step) => setBack(step)}
-            onAnswer={answer}
-            onGenerate={() => {
-              setBack(null);
-              return generate();
-            }}
-          />
-        )}
-        {planning && (
-          <div className="rounded-2xl border border-white/15 bg-stone-900/50 p-4 backdrop-blur-2xl">
-            <PlanProgress progress={trip.progress ?? 'spots'} />
-          </div>
-        )}
-        {failed && <p className="text-accent m-0 text-[13px]">{t('state.sendFailed')}</p>}
-        <div ref={bottom} />
+      <div
+        ref={scroller}
+        // Wider than the column (negative margin + padding), so card shadows fade out instead of being cut.
+        className="noscroll -mx-8 min-h-0 flex-1 overflow-y-auto px-8"
+      >
+        <div
+          ref={content}
+          className="flex flex-col justify-start gap-3 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]"
+        >
+          <LanguageNote tripLanguage={trip.language} />
+          <Messages messages={messages} variant="photo" />
+          {pending && !delivered && (
+            <p className="text-ink rise max-w-[85%] self-end rounded-[18px_18px_4px_18px] border border-white/60 bg-white/55 px-3.5 py-2 text-[15px] leading-[1.6] whitespace-pre-line backdrop-blur-xl">
+              {pending}
+            </p>
+          )}
+          {card && !busy && back && (
+            <p className="m-0 flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-[12px] text-white backdrop-blur-xl">
+              <Pencil size={13} strokeWidth={1.8} aria-hidden="true" />
+              {t('card.editing').replace('{what}', t(`slot.${back}`))}
+            </p>
+          )}
+          {card && !planning && (
+            <CardShell key={cardKey} leaving={sending} delay={cardDelay}>
+              <QuestionCard
+                card={card}
+                slots={trip.slots}
+                disabled={busy}
+                onBack={previous ? () => setBack(previous) : undefined}
+                onPlanMusts={setPlannedMusts}
+                plannedMusts={plannedMusts}
+                onEdit={(step) => setBack(step)}
+                onAnswer={answer}
+                onGenerate={() => {
+                  setBack(null);
+                  return generate();
+                }}
+              />
+            </CardShell>
+          )}
+          {typing && <TypingBubble variant="photo" />}
+          {planning && (
+            <div className="rise rounded-2xl border border-white/15 bg-stone-900/50 p-4 backdrop-blur-2xl">
+              <PlanProgress progress={trip.progress ?? 'spots'} />
+            </div>
+          )}
+          {failed && <p className="text-accent m-0 text-[13px]">{t('state.sendFailed')}</p>}
+        </div>
       </div>
 
       {!card && (
