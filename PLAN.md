@@ -16,7 +16,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 - Development started: Nov 5 (Thu) 10:00 JST
 - **Code freeze and submission: Nov 10 (Tue) 19:00 JST.** After this time the GitHub repo becomes read-only.
 - **Internal target: submit by Nov 10 (Tue) 18:00 JST.** Keep one hour as a buffer.
-- The deployed URL must keep working until **Nov 14 (Sat)** (Regional Day).
+- The deployed URL must keep working until **Nov 14 (Sat)** (Regional Day). Public link: https://kyucat-trip.web.app (D77).
 - If the team reaches the finals, development can continue until Demo Day (Nov 27).
 
 ---
@@ -255,7 +255,7 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
       "note": "Boat ride and Manai Falls",
       "videoIds": ["..."],
       "warn": null,
-      "leg": {"mode": "DRIVE", "minutes": 120, "polyline": "...", "estimate": false}
+      "leg": {"mode": "DRIVE", "minutes": 120, "polyline": "...", "estimate": false, "line": null}
     }]
   }],
   "cost": {"basis": "person", "min": 42000, "max": 55000,
@@ -267,7 +267,9 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
 Rules:
 - `leg` is the move from this stop to the next. The last stop of a day has `leg: null`.
 - `leg.mode`: `"DRIVE"`, `"TRANSIT"`, `"WALK"`, `"FLIGHT"`, `"FERRY"`.
-- `leg.estimate: true` when the Routes API cannot compute it (flights, ferries, countries with no transit data). Gemini fills `minutes`. The UI shows a "please check" badge.
+- `leg.estimate: true` when the Routes API cannot compute it (flights, ferries, countries with no transit data). Gemini fills `minutes`. The UI shows a "please check" badge and "about" before the minutes.
+- `leg.line`: what to ride for TRANSIT, FERRY and FLIGHT (`"Kamome Shinkansen"`, `"Bus 52"`), else `null`. From the Routes API's transit details when it has a route, otherwise from the Planner. The UI shows it instead of a generic "Public transport".
+- A WALK the Routes API times at over 30 minutes becomes the trip's ride mode (DRIVE, or TRANSIT for train/bus trips).
 - `time` is local time at the destination (`"HH:MM"`). No time-zone conversion in the MVP.
 - Costs are always ranges (`min`/`max`), never one exact number. UI shows an "estimate" badge.
 - `nameLocal` is the name in the destination's language. It is used for YouTube search.
@@ -446,7 +448,7 @@ right, and the place card and the Shorts viewer sit beside the column instead of
 
 ### 10.3 Language
 
-- The language (`"en"` or `"ja"`) lives in a cookie, so `app/layout.tsx` renders the right text on the server with no flash. Also save it to `users/{uid}.language`.
+- The language (`"en"` or `"ja"`) lives in the `__session` cookie (the only cookie Firebase Hosting forwards, D77), so `app/layout.tsx` renders the right text on the server with no flash. Also save it to `users/{uid}.language`.
 - UI text from `public/i18n/en.json` and `ja.json` through `useT()` in `lib/i18n.tsx`. Never hard-code UI text.
 - The Maps JavaScript API language is set when the script loads. After a language change, reload the page.
 - A viewer of a shared trip sees UI in their own language. The plan text stays in the trip's language.

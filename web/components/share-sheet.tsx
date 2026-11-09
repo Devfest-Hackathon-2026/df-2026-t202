@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { post } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import type { Plan, Trip } from '@/lib/types';
+import { legText } from './plan/plan-panel';
 
 /** Plain text for LINE: the plan as a message friends can read without opening a link. */
 export function planAsText(plan: Plan, t: (key: string) => string): string {
@@ -18,8 +19,7 @@ export function planAsText(plan: Plan, t: (key: string) => string): string {
       lines.push(
         `${stop.time} ${stop.name}${stop.note ? `（${stop.note.replace(/\n/g, ' ')}）` : ''}`,
       );
-      if (stop.leg)
-        lines.push(`　↓ ${t(`leg.${stop.leg.mode}`)} ${stop.leg.minutes}${t('time.min')}`);
+      if (stop.leg) lines.push(`　↓ ${legText(stop.leg, t)}`);
     }
   }
   return lines.join('\n');

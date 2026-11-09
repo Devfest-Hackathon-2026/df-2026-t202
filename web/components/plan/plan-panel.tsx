@@ -2,12 +2,11 @@
 
 import { Check, Film, Play, Route, Search, type LucideIcon } from 'lucide-react';
 import { LanguageNote } from '@/components/language-note';
-import { PlacePhoto } from './place-photo';
 import { DayTabs } from '@/components/day-tabs';
 import { dayColor } from '@/components/map-canvas';
 import { useEffect, useRef } from 'react';
 import { useT } from '@/lib/i18n';
-import type { Cost, Day, Plan, Progress, Stop, Trip } from '@/lib/types';
+import type { Cost, Day, Leg, Plan, Progress, Stop, Trip } from '@/lib/types';
 
 const BODY =
   'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] desk:px-[18px]';
@@ -39,6 +38,12 @@ function formatMinutes(minutes: number, t: (key: string) => string): string {
   return m === 0
     ? t('time.hours').replace('{h}', String(h))
     : t('time.hoursMinutes').replace('{h}', String(h)).replace('{m}', String(m));
+}
+
+/** "Kamome Shinkansen · about 1 h 30 min": what to ride (when known), then the time; "about" when estimated. */
+export function legText(leg: Leg, t: (key: string) => string): string {
+  const time = formatMinutes(leg.minutes, t);
+  return `${leg.line || t(`leg.${leg.mode}`)} · ${leg.estimate ? t('time.about').replace('{t}', time) : time}`;
 }
 
 const PROGRESS_STEPS: Progress[] = ['spots', 'routes', 'videos'];
@@ -256,6 +261,7 @@ function DaySection({
                   {stop.warn && <span className={BADGE}>{stop.warn}</span>}
                 </span>
               </button>
+              {/* A thumbnail only when there is a Short to play: no empty boxes. */}
               {stop.videoIds.length > 0 ? (
                 <button
                   type="button"
@@ -275,17 +281,11 @@ function DaySection({
                     <Play size={14} fill="currentColor" aria-hidden="true" />
                   </span>
                 </button>
-              ) : (
-                // No Short for this spot: show the place's own photo from Google Maps instead.
-                <PlacePhoto
-                  placeId={stop.placeId}
-                  className="h-16 w-12 flex-none overflow-hidden rounded-xl border border-white/20 bg-white/10"
-                />
-              )}
+              ) : null}
             </div>
             {stop.leg && (
               <p className="flex items-center gap-2 py-1 pl-[60px] text-xs text-white/60">
-                {t(`leg.${stop.leg.mode}`)} · {formatMinutes(stop.leg.minutes, t)}
+                {legText(stop.leg, t)}
                 {stop.leg.estimate && <span className={BADGE}>{t('plan.badge.pleaseCheck')}</span>}
               </p>
             )}

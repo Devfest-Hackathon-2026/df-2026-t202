@@ -4,26 +4,29 @@ Adds to the root `AGENTS.md`. Spec: PLAN.md section 10. **Next.js 16** (App Rout
 **Tailwind CSS v4**, `@vis.gl/react-google-maps`, Firebase JS SDK. Node ≥ 22.12, npm 11.
 The framework changed from Angular on 2026-11-09 — see `docs/decisions.md` D70.
 
-## Layout (✅ exists, ⬜ to build)
+## Layout
 
 ```
-app/layout.tsx             ✅ language from the cookie, Noto Sans JP, I18nProvider
-app/globals.css            ✅ Tailwind import, @theme tokens (--color-ink, --color-accent, --color-day-1..7), glass classes
-app/page.tsx               ✅ S7 My trips          (placeholder: title + language switch)
-app/trips/[tripId]/page.tsx       ⬜ S1 chat + S2 slots panel   (placeholder)
-app/trips/[tripId]/plan/page.tsx  ⬜ S3-S5 trip page, map, Shorts viewer, share sheet (placeholder)
-app/s/[shareId]/page.tsx          ⬜ S6 shared page, read-only, anonymous auth (placeholder)
-components/language-switch.tsx ✅ en/ja toggle
-components/                ⬜ cards, map, timeline, Shorts viewer
-lib/env.ts                 ✅ NEXT_PUBLIC_* build-time config
-lib/firebase.ts            ✅ app/auth/firestore singletons, emulators, App Check when a site key is set
-lib/api.ts                 ✅ post<T>(path, body): the only way to call the API (adds ID token + App Check token)
-lib/i18n.tsx               ✅ I18nProvider, useT(), useLanguage(), setLanguage()
-lib/language.ts            ✅ cookie name, header fallback
-lib/                       ⬜ auth helpers (Google + anonymous), trip/messages/plan Firestore hooks
-public/i18n/en.json, ja.json ✅ UI text. Keys must match (tests/i18n.test.ts)
-apphosting.yaml            ✅ App Hosting env (BUILD availability); REPLACE-* values set by INF
+app/layout.tsx              language from the `__session` cookie (Firebase Hosting forwards only that one), I18nProvider
+app/globals.css             Tailwind import, @theme tokens (--color-ink, --color-accent, --color-day-1..7), glass classes
+app/page.tsx                S7 start: sign-in, prompt, suggestion chips, my trips (user menu)
+app/trips/[tripId]/page.tsx S1-S5: chat and question cards, then the plan, map, Shorts and share sheet
+app/s/[shareId]/page.tsx    S6 shared page, read-only, anonymous auth
+components/chat/            chat panel, messages, question cards, photo chat
+components/plan/            plan panel (timeline, legs, cost), spot panel (Shorts player), place photo
+components/                 map, bottom sheet, day tabs, share sheet, headers, language switch, user menu
+lib/env.ts                  NEXT_PUBLIC_* build-time config (trimmed)
+lib/firebase.ts             app/auth/firestore singletons, emulators, App Check when a site key is set
+lib/api.ts                  post<T>(path, body): the only way to call the API (adds ID token + App Check token)
+lib/auth.ts, trip.ts        Google + anonymous sign-in; trip/messages/plan Firestore hooks
+lib/i18n.tsx, language.ts   I18nProvider, useT(), useLanguage(), setLanguage(); cookie name
+lib/types.ts                PLAN.md 7 shapes (mirror api/app/models.py)
+public/i18n/en.json, ja.json UI text. Keys must match (tests/i18n.test.ts)
+apphosting.yaml             App Hosting env (BUILD availability)
 ```
+
+Deploy: `firebase deploy --only apphosting` from the repo root (the backend is not linked to GitHub). The public link
+is `https://kyucat-trip.web.app` (Firebase Hosting rewrite to the App Hosting service, `docs/decisions.md` D77).
 
 ## React rules
 

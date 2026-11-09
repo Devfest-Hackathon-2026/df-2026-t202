@@ -217,11 +217,12 @@
     "minutes": "{m} min",
     "hours": "{h} h",
     "hoursMinutes": "{h} h {m} min",
-    "min": "min"
+    "min": "min",
+    "about": "about {t}"
   },
   "leg": {
     "DRIVE": "Car",
-    "TRANSIT": "Train or bus",
+    "TRANSIT": "Public transport",
     "WALK": "Walk",
     "FLIGHT": "Flight",
     "FERRY": "Ferry"

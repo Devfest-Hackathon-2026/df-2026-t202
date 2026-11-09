@@ -91,6 +91,8 @@ export interface Leg {
   polyline?: string | null;
   /** true = the Routes API could not compute it; show "Please check". */
   estimate: boolean;
+  /** What to ride for TRANSIT/FERRY/FLIGHT ("Kamome Shinkansen", "Bus 52"); null when unknown. */
+  line?: string | null;
 }
 
 export interface Stop {

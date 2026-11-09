@@ -96,7 +96,7 @@ def fake_world(monkeypatch, replace_with=None):
     async def local_name(place_id, country):
         return "黒川温泉" if place_id == "p-onsen" else None
 
-    async def shorts_for(place_id, name_local, region, name=""):
+    async def shorts_for(place_id, name_local, region, name="", lang="en"):
         log.setdefault("videos", []).append(place_id)
         return [f"vid-{place_id}"]
 
@@ -105,7 +105,7 @@ def fake_world(monkeypatch, replace_with=None):
 
     async def leg(a, b, mode, lang):
         log["routes"].append(mode)
-        return {"minutes": 50, "polyline": "abc"}
+        return {"minutes": 10 if mode == "WALK" else 50, "polyline": "abc"}
 
     for target, name, fn in [
         (fs, "get_trip", get_trip),
@@ -310,7 +310,7 @@ def test_start_and_end_keep_gemini_names(monkeypatch):
 def test_at_most_4_youtube_searches_at_once(monkeypatch):
     running, peak = 0, 0
 
-    async def shorts_for(place_id, name_local, region, name=""):
+    async def shorts_for(place_id, name_local, region, name="", lang="en"):
         nonlocal running, peak
         running += 1
         peak = max(peak, running)
@@ -339,7 +339,7 @@ def jp_run(**kw):
 def test_videos_skip_hotels_and_stations_and_search_sights_first(monkeypatch):
     searched = []
 
-    async def shorts_for(place_id, name_local, region, name=""):
+    async def shorts_for(place_id, name_local, region, name="", lang="en"):
         searched.append(place_id)
         return ["new"]
 
@@ -380,6 +380,53 @@ def test_transit_without_a_route_walks_when_close(monkeypatch):
     assert (a.leg.mode, a.leg.minutes, a.leg.estimate) == ("WALK", 20, False)
     assert (near.leg.mode, near.leg.minutes, near.leg.estimate) == ("TRANSIT", 25, True)  # the Planner's honest guess
     assert asked == ["TRANSIT", "WALK", "TRANSIT"]
+
+
+def test_a_long_walk_becomes_a_ride(monkeypatch):
+    async def leg(a, b, mode, lang):
+        return {"WALK": {"minutes": 177, "polyline": "w"}, "DRIVE": {"minutes": 20, "polyline": "d"}}.get(mode)
+
+    monkeypatch.setattr(routes, "leg", leg)
+    shrine, beef = stop("s-101", "10:40", "Shrine"), stop("s-102", "14:25", "Beef")
+    park = stop("s-103", "18:00", "Park")
+    shrine.lat, shrine.lng, beef.lat, beef.lng, park.lat, park.lng = 33.19, 130.02, 33.25, 130.02, 33.31, 130.02
+    shrine.leg = beef.leg = Leg(mode="WALK", minutes=30)
+    plan = Plan(title="t", language="en", days=[Day(day=1, stops=[shrine, beef, park])])
+
+    asyncio.run(pipeline.add_legs(plan, jp_run()))  # a train trip in Japan: no transit data
+
+    leg = shrine.leg
+    assert (leg.mode, leg.minutes, leg.estimate, leg.polyline) == ("TRANSIT", 30, True, None)  # car time + 10
+    car = pipeline.Run(lang="en", near=None, country="JP", default_mode="DRIVE")
+    shrine.leg = Leg(mode="WALK", minutes=30)
+    asyncio.run(pipeline.add_legs(plan, car))
+    assert (shrine.leg.mode, shrine.leg.minutes, shrine.leg.estimate) == ("DRIVE", 20, False)
+
+
+def test_transit_keeps_the_planners_line_when_routes_has_none(monkeypatch):
+    async def leg(a, b, mode, lang):
+        return None
+
+    monkeypatch.setattr(routes, "leg", leg)
+    a, b = stop("s-101", "09:00", "Hakata"), stop("s-102", "11:00", "Nagasaki")
+    a.lat, a.lng, b.lat, b.lng = 33.59, 130.42, 32.75, 129.87
+    a.leg = Leg(mode="TRANSIT", minutes=90, line="Kamome Shinkansen")
+    plan = Plan(title="t", language="en", days=[Day(day=1, stops=[a, b])])
+
+    asyncio.run(pipeline.add_legs(plan, jp_run()))
+
+    assert (a.leg.line, a.leg.minutes, a.leg.estimate) == ("Kamome Shinkansen", 90, True)
+
+
+def test_retime_rounds_every_time_to_five_minutes():
+    a, b, c = stop("s-101", "09:02", "A"), stop("s-102", "10:00", "B"), stop("s-103", "18:27", "C")
+    a.leg, b.leg = Leg(mode="WALK", minutes=7), Leg(mode="WALK", minutes=3)
+    c.kind = "food"  # a meal keeps the Planner's (later) time
+    plan = Plan(title="t", language="en", days=[Day(day=1, stops=[a, b, c])])
+
+    pipeline.retime(plan)
+
+    assert [s.time for s in plan.days[0].stops] == ["09:05", "10:15", "18:30"]
 
 
 def test_one_closed_stop_triggers_a_repair_with_its_opening_hours(monkeypatch):

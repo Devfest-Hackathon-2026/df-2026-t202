@@ -195,7 +195,7 @@ def test_leg_drive(monkeypatch):
 
     out = asyncio.run(routes.leg((32.70, 131.30), (33.06, 131.11), "DRIVE", "en"))
 
-    assert out == {"minutes": 121, "polyline": "abc"}
+    assert out == {"minutes": 121, "polyline": "abc", "line": None}
     body = json.loads(calls[0].content)
     assert body["travelMode"] == "DRIVE"
     assert body["routingPreference"] == "TRAFFIC_UNAWARE"
@@ -204,8 +204,23 @@ def test_leg_drive(monkeypatch):
 def test_leg_transit_has_no_routing_preference(monkeypatch):
     calls = fake_http(monkeypatch, routes, lambda r: httpx.Response(200, json={"routes": [{"duration": "600s"}]}))
     out = asyncio.run(routes.leg((0, 0), (1, 1), "TRANSIT", "ja"))
-    assert out == {"minutes": 10, "polyline": None}
+    assert out == {"minutes": 10, "polyline": None, "line": None}
     assert "routingPreference" not in json.loads(calls[0].content)
+
+
+def test_leg_transit_names_the_lines(monkeypatch):
+    def step(name=None, short=None, vehicle=None):
+        line = {"name": name, "nameShort": short, "vehicle": {"name": {"text": vehicle}} if vehicle else None}
+        return {"transitDetails": {"transitLine": {k: v for k, v in line.items() if v}}}
+
+    steps = [{}, step(name="Ginza Line"), {}, step(short="25", vehicle="Bus"), step(name="Ginza Line"), step("C")]
+    route = {"routes": [{"duration": "1500s", "legs": [{"steps": steps}]}]}
+    calls = fake_http(monkeypatch, routes, lambda r: httpx.Response(200, json=route))
+
+    out = asyncio.run(routes.leg((0, 0), (1, 1), "TRANSIT", "en"))
+
+    assert out["line"] == "Ginza Line → Bus 25"  # in order, no repeats, at most two
+    assert "transitDetails" in calls[0].headers["X-Goog-FieldMask"]
 
 
 def test_leg_no_route_or_error_returns_none(monkeypatch):

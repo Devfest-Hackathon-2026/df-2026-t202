@@ -217,11 +217,12 @@
     "minutes": "{m}分",
     "hours": "{h}時間",
     "hoursMinutes": "{h}時間{m}分",
-    "min": "分"
+    "min": "分",
+    "about": "約{t}"
   },
   "leg": {
     "DRIVE": "車",
-    "TRANSIT": "電車・バス",
+    "TRANSIT": "公共交通機関",
     "WALK": "徒歩",
     "FLIGHT": "飛行機",
     "FERRY": "フェリー"

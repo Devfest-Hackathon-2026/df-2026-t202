@@ -461,3 +461,25 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** Keep `autoplay=1` in the spot panel's player; it only starts after the user's own tap that opens the panel. **Rejected:** `autoplay=0` (the D52 note), which needs one more tap.
 - **Why:** Smoother demo; playback still follows a user action. Accepted risk against YouTube's policy wording (III.E.4.i).
 - **Decided by:** Raghav (front-end check, proposed by Claude) · 2026-11-09
+
+### D77. Short public link: Firebase Hosting in front of App Hosting
+- **Chosen:** A Firebase Hosting site `kyucat-trip` (`https://kyucat-trip.web.app`) whose only rule rewrites every path to the App Hosting backend's Cloud Run service (`trip-web`, `asia-east1`). The App Hosting URL keeps working. **Rejected:** a custom domain (costs money and DNS time a day before the deadline); the App Hosting URL as is (`trip-web--project-feeadd8d-4702-4a48-9ac.asia-east1.hosted.app`, which nobody can type or read out in a demo).
+- **Why:** Free, Google-only (PLAN.md 2), and done in minutes. App Hosting has no Tokyo region; `asia-east1` (Taiwan) is the nearest.
+- **Cost:** Hosting forwards only the `__session` cookie to the server, so the language cookie is now named `__session`. The `trip-web` service must allow unauthenticated invocation (it serves the public site anyway). The new domain is listed in Auth authorized domains, the Maps key referrers, the reCAPTCHA key and the API's `ALLOWED_ORIGINS`.
+- **Decided by:** Nazmul (Claude recommended) · 2026-11-09
+
+### D78. No long walks; legs name what to ride
+- **Chosen:** A WALK that the Routes API times at over 30 minutes becomes a ride in the trip's mode (DRIVE, or TRANSIT for train/bus trips; with no transit data in Japan the time is a car ride plus 10 minutes, marked "Please check"). `leg.line` (new, optional) names what to ride: from the Routes API's transit details when it has a route, else from the Planner. The UI shows "Kamome Shinkansen · about 1 h 30 min" instead of "Train or bus · 90 min". Every stop time is rounded to 5 minutes. **Rejected:** only telling the Planner not to walk far (it still did: a 177-minute walk in the Kyushu demo).
+- **Why:** The end-to-end review found 177- and 160-minute "walks" between towns and an unclear "Train or bus · 53 min" label; both would be the first thing a reviewer notices.
+- **Decided by:** Nazmul (Claude recommended) · 2026-11-09
+
+### D79. Shorts for every stop, in both languages; no empty thumbnails
+- **Chosen:** Search every eligible stop (cap 30 per plan, was 10), trip-language name first, then the other name when the first search found fewer than 3 Shorts (an English trip to Japan gets English and Japanese Shorts). The timeline shows a thumbnail only when the stop has a Short. **Rejected:** a place photo in the timeline as a fallback (looked like a broken video slot).
+- **Why:** Shorts are the app's main draw. 60 of 64 searched stops found Shorts; the misses were stops that were never searched because of the cap.
+- **Cost:** The YouTube quota (~100 searches a day) now covers about 3–5 new plans a day. Cached stops are free, so the demo is pre-cached (`scripts/precache_demo.py`); a quota extension request is the follow-up.
+- **Decided by:** Nazmul (Claude recommended) · 2026-11-09
+
+### D80. Keep one API instance warm during judging
+- **Chosen:** `trip-api` min instances = 1 until Nov 14, then back to 0. **Rejected:** scale to zero (the first request after idle waits for a cold start).
+- **Why:** Reviewers open the app at random times; a slow first card looks broken. Cost is small against the $20 credit.
+- **Decided by:** Nazmul (Claude recommended) · 2026-11-09
