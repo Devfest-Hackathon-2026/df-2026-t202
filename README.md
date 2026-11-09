@@ -3,14 +3,9 @@
 > **チャットで答えるだけで、「本当に回れる」旅行プランを。**
 > 実在するスポット・実際の移動時間・スポットごとの YouTube ショートが入った日ごとのプランを AI が作り、リンクひとつで友だちと共有できます。
 
-![Tripi Preview](https://github.com/user-attachments/assets/1b5fab4d-79cf-4491-bcff-40460c2f6d3b)
-![Google Maps Platform](https://img.shields.io/badge/Google_Maps-Places_·_Routes-34A853?logo=googlemaps&logoColor=white)
-![Cloud Run](https://img.shields.io/badge/Cloud_Run-FastAPI-4285F4?logo=googlecloud&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-Firestore_·_Auth_·_App_Hosting-FFCA28?logo=firebase&logoColor=black)
-![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Google Maps Platform](https://img.shields.io/badge/Google_Maps-Places_·_Routes-34A853?logo=googlemaps&logoColor=white) ![Cloud Run](https://img.shields.io/badge/Cloud_Run-FastAPI-4285F4?logo=googlecloud&logoColor=white) ![Firebase](https://img.shields.io/badge/Firebase-Firestore_·_Auth_·_App_Hosting-FFCA28?logo=firebase&logoColor=black) ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white) ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 
-![Tripi のスタート画面：行き先を入力するか、例から選ぶ](docs/images/start.jpg)
+![Tripi Preview](https://github.com/user-attachments/assets/1b5fab4d-79cf-4491-bcff-40460c2f6d3b)
 
 | ① 自由な文章で伝える | ② 条件を確認して「プランを作成」 |
 | --- | --- |
