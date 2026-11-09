@@ -29,7 +29,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 
 **Problem:** When students plan a trip with friends, LINE messages, Google Maps links and YouTube links get mixed up. Nobody knows who decided what. Nobody checks if travel times are realistic.
 
-**Target users:** University students and people in their 20s who plan trips with friends.
+**Target users:** Anyone planning a trip (any destination, purpose or age). Typical examples: university students planning a trip with friends; people going somewhere they don't know, including visitors to Japan; people who want to decide quickly where to go and in what order.
 
 **Scope of destinations:** Anywhere in the world.
 
