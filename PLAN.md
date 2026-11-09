@@ -16,7 +16,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 - Development started: Nov 5 (Thu) 10:00 JST
 - **Code freeze and submission: Nov 10 (Tue) 19:00 JST.** After this time the GitHub repo becomes read-only.
 - **Internal target: submit by Nov 10 (Tue) 18:00 JST.** Keep one hour as a buffer.
-- The deployed URL must keep working until **Nov 14 (Sat)** (Regional Day). Public link: https://kyucat-trip.web.app (D77).
+- The deployed URL must keep working until **Nov 14 (Sat)** (Regional Day). Public link: https://tripi.web.app (D77).
 - If the team reaches the finals, development can continue until Demo Day (Nov 27).
 
 ---
@@ -660,7 +660,7 @@ Everything in the video must be real app output.
 - [ ] Attribution and licensing sheet
 - [ ] Pitch slides (in-person venues only)
 - [ ] Drive folder set to "Anyone with the link can view"
-- [ ] Deployed URL works until Nov 14 (live: https://kyucat-trip.web.app)
+- [ ] Deployed URL works until Nov 14 (live: https://tripi.web.app)
 
 ---
 

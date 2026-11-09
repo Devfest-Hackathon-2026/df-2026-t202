@@ -26,7 +26,7 @@ apphosting.yaml             App Hosting env (BUILD availability)
 ```
 
 Deploy: `firebase deploy --only apphosting` from the repo root (the backend is not linked to GitHub). The public link
-is `https://kyucat-trip.web.app` (Firebase Hosting rewrite to the App Hosting service, `docs/decisions.md` D77).
+is `https://tripi.web.app` (Firebase Hosting rewrite to the App Hosting service, D77, D85); `https://kyucat-trip.web.app` still works.
 
 ## React rules
 

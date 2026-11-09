@@ -509,6 +509,12 @@ Full options, pros and cons for these are in the [appendix](#appendix-plan-engin
 - **Why:** The itinerary is a schedule people scan for times, destinations, and transport. Remove the repeated title and never fade unselected days.
 - **Decided by:** Nazmul, requesting one shared background and rejecting white; Codex selected the slate palette; Nazmul then requested the original photo in a subtle treatment · 2026-11-09
 
+### D85. Public link `tripi.web.app`, old link kept
+- **Chosen:** A second Firebase Hosting site `tripi` with the same rewrite to App Hosting, so the link matches the product name. `kyucat-trip.web.app` stays live (both sites in `firebase.json`). The new domain was added to Firebase Auth's authorized domains, the API's `ALLOWED_ORIGINS`, the Maps browser key's referrers and the App Check reCAPTCHA key's domains.
+- **Rejected:** Renaming the old site (Firebase can't rename a site; deleting it breaks links already shared). A custom domain (costs money and DNS time on submission day).
+- **Why:** The product is named Tripi; the URL in the README and the submission should say so.
+- **Decided by:** Nazmul · 2026-11-10
+
 ---
 
 ## Appendix: plan-engine decisions in detail (P1–P34)

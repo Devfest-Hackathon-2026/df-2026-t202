@@ -3,7 +3,7 @@
 > **チャットで答えるだけで、「本当に回れる」旅行プランを。**
 > 実在するスポット・実際の移動時間・スポットごとの YouTube ショートが入った日ごとのプランを AI が作り、リンクひとつで友だちと共有できます。
 
-![Tripi：九州 4 日間のプラン（全日のルート）](docs/images/plan.jpg)
+![Tripi のスタート画面：行き先を入力するか、例から選ぶ](docs/images/start.jpg)
 
 | ① 自由な文章で伝える | ② 条件を確認して「プランを作成」 |
 | --- | --- |
@@ -11,12 +11,16 @@
 | **③ 作成中の進捗を表示** | **④ 1 日ごとの検証済みルート** |
 | ![進捗カード：日程の組み立て → 移動時間の計算 → 動画探し](docs/images/progress.jpg) | ![1 日目：実際の道路に沿ったルートと、時刻・移動手段・「要確認」バッジ付きのタイムライン](docs/images/day-route.jpg) |
 
+**⑤ 完成したプラン：4 日間すべてのルートを地図で一覧**
+
+![九州 4 日間のプラン：日ごとに色分けしたルートと番号付きピン](docs/images/plan.jpg)
+
 ## デモ・関連リンク
 
 | 種別 | URL |
 | --- | --- |
-| デプロイ URL | **https://kyucat-trip.web.app** （Google アカウントでログイン。共有リンクはログイン不要で閲覧可） |
-| 設計判断の記録 | [`docs/decisions.md`](docs/decisions.md)（84 件の判断：比較した選択肢・採用理由・決めた人） |
+| デプロイ URL | **https://tripi.web.app** （Google アカウントでログイン。共有リンクはログイン不要で閲覧可。旧 URL https://kyucat-trip.web.app も引き続き利用可） |
+| 設計判断の記録 | [`docs/decisions.md`](docs/decisions.md)（85 件の判断：比較した選択肢・採用理由・決めた人） |
 | AI 活用ログ | [`AI_USAGE_LOG.md`](AI_USAGE_LOG.md) |
 
 ## チーム情報
@@ -77,7 +81,7 @@ Tripi は、この 2 つの問題を同時に解きます。**AI の発想力で
 
 ## Own the Why — 主な設計判断
 
-テーマ「Own the Why, Build with Intent.」に沿って、AI の提案をそのまま採用せず、**重要な判断はすべて 2〜3 案を比較し、人が決めて記録** しました（全 84 件：[`docs/decisions.md`](docs/decisions.md)）。代表的なものです。
+テーマ「Own the Why, Build with Intent.」に沿って、AI の提案をそのまま採用せず、**重要な判断はすべて 2〜3 案を比較し、人が決めて記録** しました（全 85 件：[`docs/decisions.md`](docs/decisions.md)）。代表的なものです。
 
 | 判断 | 採用 | 採用しなかった案 | 理由 |
 | --- | --- | --- | --- |
