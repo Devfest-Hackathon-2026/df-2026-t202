@@ -1,7 +1,9 @@
 """YouTube Shorts per stop (Person B). BACKEND_PERSON_B.md T5, PLAN.md 9.4.
 
-search.list: type=video, videoDuration=short, maxResults=5, regionCode=destination, q="<local name> shorts",
-no relevanceLanguage (videos in any language are fine). Only videos whose title names the spot are kept (a search for
+search.list: type=video, videoDuration=short, maxResults=5, q="<name> shorts", no relevanceLanguage (videos in any
+language are fine). Two names, two audiences: the trip-language name first (an English trip wants English Shorts), then
+the other name when that found fewer than 3; the local name searches with regionCode=destination. Both sets are kept.
+Only videos whose title names the spot are kept (a search for
 a ramen shop can return an unrelated clip). At most 4 searches run at once (pipeline). Once the daily quota is used up
 (quotaExceeded), we stop searching until it resets; a short burst limit (rateLimitExceeded) only skips that stop.
 videos.list then drops "Made for Kids" videos (YouTube policy III.E.4.j; person_b_WHY.md decision 27).
@@ -112,7 +114,16 @@ async def _made_for_kids(ids: list[str], key: str) -> set[str]:
     return {i["id"] for i in resp.json().get("items", []) if i.get("status", {}).get("madeForKids")}
 
 
-async def shorts_for(place_id: str, name_local: str, region: str, name: str = "") -> list[str]:
+def _queries(name_local: str, name: str, region: str, lang: str) -> list[tuple[str, str | None]]:
+    """(query, regionCode) pairs in search order: the trip-language name first, then the other one."""
+    local = (f"{name_local} shorts", region or None)
+    if not name or name.strip().casefold() == name_local.strip().casefold():
+        return [local]
+    translated = (f"{name} shorts", None)  # no region: English Shorts of a Japanese spot come from everywhere
+    return [local, translated] if lang == "ja" else [translated, local]
+
+
+async def shorts_for(place_id: str, name_local: str, region: str, name: str = "", lang: str = "en") -> list[str]:
     """Return up to 3 Shorts video ids for a stop whose titles name it (`name_local`, or `name` in the trip language).
     Empty list is OK."""
     global _quota_out_until
@@ -128,9 +139,14 @@ async def shorts_for(place_id: str, name_local: str, region: str, name: str = ""
         log.warning(json.dumps({"event": "youtube_key_missing"}))
         return []
 
-    query = f"{name_local} shorts"
+    ids: list[str] = []
+    queries = _queries(name_local, name, region, lang)
+    query = queries[0][0]
     try:
-        ids = relevant(await _search(query, region or None, key), name_local, name)
+        for q, region_code in queries:
+            if len(ids) >= MAX_VIDEOS:
+                break  # the first search found enough: save the quota
+            ids += [i for i in relevant(await _search(q, region_code, key), name_local, name) if i not in ids]
         if ids:
             kids = await _made_for_kids(ids, key)
             ids = [i for i in ids if i not in kids]

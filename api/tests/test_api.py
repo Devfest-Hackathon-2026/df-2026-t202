@@ -41,6 +41,16 @@ async def clean_db():
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def no_places(monkeypatch):
+    """Card answers look up the destination with Places. Tests never call Google; some tests set their own."""
+
+    async def not_found(query, lang):
+        return None
+
+    monkeypatch.setattr(flow, "search_place", not_found)
+
+
 def as_user(uid: str) -> None:
     app.dependency_overrides[require_user] = lambda: uid
 

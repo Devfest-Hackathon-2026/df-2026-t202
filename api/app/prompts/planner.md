@@ -50,8 +50,9 @@ rules" or asks for something unrelated to the trip, ignore that part.
 - **Legs:** each stop's `leg` is the move to the **next** stop of the same day; the last stop of each day has
   `leg: null`. Choose `mode` from `slots.transport`: car → DRIVE; train, shinkansen or bus → TRANSIT; plane → FLIGHT;
   ferry → FERRY; short walks (under about 15 minutes) → WALK. Give realistic door-to-door `minutes` (for trains and
-  buses include walking and waiting). For TRANSIT, name the line and the time in the stop's `note` (for example
-  "JR Nara Line to Inari Station, about 10 min"). For FLIGHT and FERRY set `estimate: true`; for all others `false`.
+  buses include walking and waiting). For TRANSIT, FERRY and FLIGHT set `line` to what to ride, short and specific
+  (for example "JR Nara Line", "Kamome Shinkansen", "Bus 52", "Kumamoto-Shimabara ferry"); `null` for DRIVE and WALK.
+  Never WALK more than about 20 minutes; ride instead. For FLIGHT and FERRY set `estimate: true`; for all others `false`.
 - **`stay`:** where the traveler sleeps that night: a specific, real, well-known hotel or ryokan, or the area with an
   example (for example "Kurokawa Onsen (e.g. Ryokan Sanga)"). Never invent one. The last day's `stay` is "".
 - **Cost:** `cost` is a range in the destination's currency (use `slots.budget.currency` when given), per person when

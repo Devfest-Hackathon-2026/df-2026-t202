@@ -17,17 +17,17 @@ app/auth.py            ✅ (A) require_user (ID token + App Check), `User` depen
 app/models.py          ✅ (both) Pydantic models for PLAN.md 7 + 8.3 + 9.1. THE contract; change it together with PLAN.md
 app/flow.py            ✅ (A) next_step, question_for, card_for, apply_answer, currency_for, merge_updates, answer_text, search_place
 app/routers/trips.py   ✅ (A) create trip, post message, share, join share
-app/routers/plan.py    ⬜ (B) POST /trips/{id}/plan and the edit routes
+app/routers/plan.py    ✅ (B) POST /trips/{id}/plan and the edit routes
 app/agents/concierge.py ✅ (A) run(): free text → ConciergeOutput via llm.generate_json
-app/agents/planner.py  ⬜ (B) slots + chat → draft Plan
+app/agents/planner.py  ✅ (B) slots + chat → draft Plan
 app/services/firestore.py ✅ (A) async helpers: db, now, get_trip, update_trip, list_messages, add_message, save_plan, cache_get, cache_set
 app/services/llm.py    ✅ (A) generate_json, MODEL_FAST, MODEL_PLANNER, LLMError
 app/services/limits.py ✅ (A) check_plan_limit (per user per day), check_message_limit (per trip)
-app/services/places.py ⬜ (B) Text Search / Place Details + cache_places
-app/services/routes.py ⬜ (B) computeRoutes per leg
-app/services/youtube.py ⬜ (B) search.list + cache_videos (7 days)
-app/pipeline.py        ⬜ (B) plan pipeline (PLAN.md 9.3), writes progress to the trip doc
-app/prompts/*.md       concierge.md ✅ (A); planner prompt ⬜ (B)
+app/services/places.py ✅ (B) Text Search / Place Details + cache_places
+app/services/routes.py ✅ (B) computeRoutes per leg
+app/services/youtube.py ✅ (B) search.list + cache_videos (7 days)
+app/pipeline.py        ✅ (B) plan pipeline (PLAN.md 9.3), writes progress to the trip doc
+app/prompts/*.md       concierge.md ✅ (A); planner.md ✅ (B)
 tests/                 ✅ (both) conftest.py, test_flow.py, test_api.py, test_models.py; fixtures/demo_slots.json (demo_plan.json is in app/fixtures/, used by the plan stub)
 ```
 
@@ -101,6 +101,6 @@ With emulators, set `FIRESTORE_EMULATOR_HOST=127.0.0.1:8081` and `FIREBASE_AUTH_
 
 ## Test and deploy
 - Tests mock Gemini, Places, Routes and YouTube (no network). From `api/`, with the Firestore emulator on :8081:
-  `firebase emulators:exec --only firestore --project demo-test ".venv/bin/pytest -q"`
+  `firebase emulators:exec --only firestore --project demo-trip-planner ".venv/bin/pytest -q"`
 - Rules tests (Node 22): `cd rules-tests && npm test`.
 - Deploy (only when asked): `gcloud run deploy trip-api --source api --region asia-northeast1 --service-account trip-api@<project>.iam.gserviceaccount.com --set-secrets PLACES_API_KEY=places-api-key:latest ...`

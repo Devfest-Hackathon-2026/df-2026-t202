@@ -90,6 +90,7 @@ class Leg(BaseModel):
     minutes: int
     polyline: Optional[str] = None  # encoded polyline from the Routes API
     estimate: bool = False          # True = not computed by the Routes API
+    line: Optional[str] = None      # TRANSIT/FERRY/FLIGHT: what to ride, e.g. "Kamome Shinkansen", "Bus 52"
 
 
 class Stop(BaseModel):

@@ -3,15 +3,19 @@
  * Locally these come from web/.env.local; on App Hosting from apphosting.yaml.
  * Everything here reaches the browser: only browser-safe values.
  */
+// Trimmed: a value pasted into Secret Manager can end in a newline, and a key with "%0A" on it is
+// rejected outright (the map tolerated it, Places photo URLs did not).
+const clean = (value: string | undefined, fallback = '') => value?.trim() || fallback;
+
 export const env = {
   firebase: {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'demo-trip-planner',
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
+    apiKey: clean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
+    authDomain: clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
+    projectId: clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, 'demo-trip-planner'),
+    appId: clean(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
   },
-  mapsBrowserKey: process.env.NEXT_PUBLIC_MAPS_BROWSER_KEY ?? '',
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080',
-  recaptchaSiteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '',
+  mapsBrowserKey: clean(process.env.NEXT_PUBLIC_MAPS_BROWSER_KEY),
+  apiBaseUrl: clean(process.env.NEXT_PUBLIC_API_BASE_URL, 'http://localhost:8080'),
+  recaptchaSiteKey: clean(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
   useEmulators: process.env.NEXT_PUBLIC_USE_EMULATORS === 'true',
 } as const;

@@ -5,7 +5,7 @@
 DevFest GDGoC Japan Hackathon 2026 · カテゴリ：**観光** · チーム：Kyu_cat
 テーマ「Own the Why, Build with Intent.」
 
-> デプロイ URL：_提出前に追記_
+> デプロイ URL：https://kyucat-trip.web.app
 
 ## 解決したい課題
 

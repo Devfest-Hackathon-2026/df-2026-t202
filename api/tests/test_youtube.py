@@ -45,7 +45,7 @@ def world(monkeypatch):
 
 
 def test_keeps_videos_naming_the_spot_drops_kids_videos_and_caches(world):
-    ids = asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP", name="Takachiho Gorge"))
+    ids = asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP", name="Takachiho Gorge", lang="ja"))
 
     assert ids == ["v1", "v2", "v5"]  # v3 is Made for Kids; v4 doesn't name the spot
     search = world["calls"][0].url.params
@@ -55,6 +55,25 @@ def test_keeps_videos_naming_the_spot_drops_kids_videos_and_caches(world):
 
     assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ids
     assert len(world["calls"]) == 2  # the second call came from the cache: no new search
+
+
+def test_english_trip_searches_the_english_name_first_then_the_local_one(world):
+    english = {"items": [{"id": {"videoId": "en1"}, "snippet": {"title": "Takachiho Gorge boat ride #shorts"}}]}
+    local = {"items": [{"id": {"videoId": f"ja{i}"}, "snippet": {"title": f"高千穂峡 {i}"}} for i in (1, 2, 3)]}
+    answers = iter([english, local])
+    world["search"] = lambda: httpx.Response(200, json=next(answers))
+
+    ids = asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP", name="Takachiho Gorge", lang="en"))
+
+    searches = [c.url.params for c in world["calls"] if c.url.path.endswith("/search")]
+    assert [s["q"] for s in searches] == ["Takachiho Gorge shorts", "高千穂峡 shorts"]
+    assert "regionCode" not in searches[0] and searches[1]["regionCode"] == "JP"
+    assert ids == ["en1", "ja1", "ja2"]  # English first, topped up with local Shorts
+
+
+def test_one_search_is_enough_when_it_finds_three(world):
+    asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP", name="Takachiho Gorge", lang="ja"))
+    assert len([c for c in world["calls"] if c.url.path.endswith("/search")]) == 1
 
 
 def test_stale_cache_searches_again(world):

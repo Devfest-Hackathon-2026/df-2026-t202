@@ -3,6 +3,18 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "hosting": {
+    "site": "kyucat-trip",
+    "public": "hosting",
+    "rewrites": [{ "source": "**", "run": { "serviceId": "trip-web", "region": "asia-east1" } }]
+  },
+  "apphosting": [
+    {
+      "backendId": "trip-web",
+      "rootDir": "web",
+      "ignore": ["node_modules", ".git", ".next", ".env", ".env.*", "firebase-debug.log"]
+    }
+  ],
   "emulators": {
     "auth": { "port": 9099 },
     "firestore": { "port": 8081 },

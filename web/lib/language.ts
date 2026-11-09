@@ -1,7 +1,10 @@
 export type Language = 'en' | 'ja';
 
-/** The language lives in a cookie so the server can render the right text with no flash (PLAN.md 10.3). */
-export const LANGUAGE_COOKIE = 'language';
+/**
+ * The language lives in a cookie so the server can render the right text with no flash (PLAN.md 10.3).
+ * Named `__session` because Firebase Hosting (kyucat-trip.web.app) forwards only that cookie to the server.
+ */
+export const LANGUAGE_COOKIE = '__session';
 
 export function toLanguage(value: string | undefined | null): Language | null {
   return value === 'en' || value === 'ja' ? value : null;

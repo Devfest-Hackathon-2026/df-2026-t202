@@ -36,6 +36,7 @@ FIX_AT_WARNINGS = 3  # this many warnings (or one "closed") -> one repair round 
 FIX_BEFORE_S = 140  # no repair round starts later than this: a fix can take 2 x 45 s, then routes and videos
 WALK_UNDER_KM = 1.0  # short hops are walks
 TRANSIT_WALK_KM = 2.0  # no transit route (Routes has no transit data for Japan): walk if it is this close
+MAX_WALK_MINUTES = 30  # a longer walk becomes a ride (a 3-hour "walk" between two towns is not a plan)
 DAY_END = 23 * 60 + 55  # re-timed stops stay on the same day
 MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D50)
 STALE_PLANNING = timedelta(minutes=10)  # a "planning" status older than this is a crashed run, not a running one
@@ -49,7 +50,7 @@ NO_VIDEO_TYPES = {  # Places types with weak Shorts: hotels, stations, rental ca
 LODGING_TYPES = {"lodging", "hotel", "japanese_inn", "hostel", "resort_hotel", "motel", "bed_and_breakfast"}
 NOT_LODGING_KINDS = {"food", "sight", "view", "night_view", "shop"}  # a hotel can't be these stops
 VIDEO_PRIORITY = {"sight": 0, "view": 0, "night_view": 0, "onsen": 0, "activity": 1, "food": 1}  # others: 2
-MAX_VIDEO_SEARCHES = 10  # new YouTube searches per plan (quota: ~100 a day); cached stops don't count
+MAX_VIDEO_SEARCHES = 30  # stops searched per plan: every stop of a 5-day trip; cached stops are free
 AREA_TYPES = {"country", "administrative_area_level_1", "administrative_area_level_2", "locality", "colloquial_area"}
 PLACE_TYPES = {"point_of_interest", "establishment", "tourist_attraction"}  # a real place, even inside a town
 TRANSPORT_MODE = {"car": "DRIVE", "train": "TRANSIT", "shinkansen": "TRANSIT", "bus": "TRANSIT"}
@@ -221,10 +222,27 @@ async def _leg(a: Stop, b: Stop, run: Run) -> None:
     if not real and mode == "TRANSIT" and distance <= TRANSIT_WALK_KM:
         mode = "WALK"  # Routes has no transit data for Japan; a real walk beats a guessed train ride
         real = await _route(a, b, mode, run)
+    if real and mode == "WALK" and real["minutes"] > MAX_WALK_MINUTES:
+        await _ride_instead(a, b, leg, run)
+        return
+    line = leg.line if mode == "TRANSIT" else None
     if real:
-        a.leg = Leg(mode=mode, minutes=real["minutes"], polyline=real["polyline"], estimate=False)
+        a.leg = Leg(mode=mode, minutes=real["minutes"], polyline=real["polyline"], line=real.get("line") or line)
     else:
-        a.leg = Leg(mode=mode, minutes=leg.minutes, polyline=None, estimate=True)  # keep the Planner's guess (D38)
+        a.leg = Leg(mode=mode, minutes=leg.minutes, estimate=True, line=line)  # keep the Planner's guess (D38)
+
+
+async def _ride_instead(a: Stop, b: Stop, leg: Leg, run: Run) -> None:
+    """Too far to walk: ride in the trip's mode. With no transit data (Japan), time the ride by car and mark it."""
+    mode = "DRIVE" if run.default_mode == "WALK" else run.default_mode
+    line = leg.line if leg.mode == mode == "TRANSIT" else None
+    real = await _route(a, b, mode, run)
+    if real:
+        a.leg = Leg(mode=mode, minutes=real["minutes"], polyline=real["polyline"], line=real.get("line") or line)
+        return
+    by_car = await _route(a, b, "DRIVE", run) if mode != "DRIVE" else None
+    minutes = by_car["minutes"] + 10 if by_car else 30  # a train or bus is about a car ride plus waiting
+    a.leg = Leg(mode=mode, minutes=minutes, estimate=True, line=line)
 
 
 async def _route(a: Stop, b: Stop, mode: str, run: Run) -> dict | None:
@@ -255,6 +273,10 @@ def _hhmm(minutes: int) -> str:
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
+def _round5(minutes: int) -> int:
+    return math.ceil(minutes / 5) * 5
+
+
 def retime(plan: Plan) -> None:
     """Keep each day's first time; next = previous + stay + travel, rounded up to 5 minutes.
 
@@ -262,10 +284,11 @@ def retime(plan: Plan) -> None:
     meals at meal times): when we'd arrive early, the stop before gets the extra time (D54).
     """
     for day in plan.days:
-        t = _minutes(day.stops[0].time)
+        t = _round5(_minutes(day.stops[0].time))
+        day.stops[0].time = _hhmm(t)
         for a, b in zip(day.stops, day.stops[1:], strict=False):
-            t = math.ceil((t + a.stayMinutes + (a.leg.minutes if a.leg else 0)) / 5) * 5
-            planned = _minutes(b.time)
+            t = _round5(t + a.stayMinutes + (a.leg.minutes if a.leg else 0))
+            planned = _round5(_minutes(b.time))  # the Planner's own times can be "18:27"
             if b.kind in ("night_view", "food") and planned > t:
                 a.stayMinutes += planned - t
                 t = planned
@@ -352,7 +375,7 @@ async def add_videos(plan: Plan, run: Run, max_searches: int = MAX_VIDEO_SEARCHE
     async def one(stop: Stop) -> None:
         async with limit:
             stop.videoIds = await youtube.shorts_for(
-                stop.placeId, stop.nameLocal or stop.name, run.country or "", name=stop.name
+                stop.placeId, stop.nameLocal or stop.name, run.country or "", name=stop.name, lang=run.lang
             )
 
     await asyncio.gather(*(one(s) for s in todo[:max_searches]))
