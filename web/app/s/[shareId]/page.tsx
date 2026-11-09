@@ -6,7 +6,7 @@ import { DayTabs } from '@/components/day-tabs';
 import { MapCanvas, type MapSelection } from '@/components/map-canvas';
 import { MapsProvider } from '@/components/maps-provider';
 import { PlanPanel } from '@/components/plan/plan-panel';
-import { VideoPanel, shortsOf, type ShortRef } from '@/components/plan/video-panel';
+import { SpotPanel } from '@/components/plan/spot-panel';
 import { BottomSheet, type SheetStop } from '@/components/bottom-sheet';
 import { SheetHeader } from '@/components/sheet-header';
 import { TripTopBar } from '@/components/trip-top-bar';
@@ -56,24 +56,16 @@ function SharedTrip({ tripId }: { tripId: string }) {
   const [stop, setStop] = useState<SheetStop>('half');
   const [activeDay, setActiveDay] = useState<number | null>(null);
   const [selected, setSelected] = useState<MapSelection>(null);
-  const [shortAt, setShortAt] = useState<number | null>(null);
 
   const plan = planDoc?.plan ?? null;
   const days = useMemo(() => plan?.days ?? [], [plan]);
-  const shorts = useMemo<ShortRef[]>(() => shortsOf(days), [days]);
 
   const selectedDay = selected ? days.find((d) => d.day === selected.day) : undefined;
 
+  // Tapping a stop zooms the map to it and opens its Short, or its photo when it has none.
   function openStop(day: number, index: number) {
     setSelected({ day, index });
     setActiveDay(day);
-    const at = shorts.findIndex((s) => s.day === day && s.index === index);
-    if (at >= 0) setShortAt(at);
-  }
-
-  function openShorts(day: number, index: number) {
-    const at = shorts.findIndex((s) => s.day === day && s.index === index);
-    setShortAt(at >= 0 ? at : 0);
   }
 
   const title = plan?.title || trip?.slots.dest?.label || t('share.title');
@@ -113,18 +105,17 @@ function SharedTrip({ tripId }: { tripId: string }) {
               activeDay={activeDay}
               onDayChange={setActiveDay}
               onSelectStop={openStop}
-              onOpenShorts={openShorts}
+              onOpenShorts={openStop}
             />
           </div>
         </BottomSheet>
 
-        {shortAt !== null && shorts.length > 0 && (
-          <VideoPanel
+        {selected && (
+          <SpotPanel
             days={days}
-            shorts={shorts}
-            position={shortAt}
-            onPosition={setShortAt}
-            onClose={() => setShortAt(null)}
+            selected={selected}
+            onSelect={(next) => openStop(next.day, next.index)}
+            onClose={() => setSelected(null)}
           />
         )}
       </main>
