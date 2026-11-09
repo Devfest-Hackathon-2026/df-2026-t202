@@ -4,6 +4,7 @@ import { ArrowUp, Pencil } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QuestionCard } from '@/components/chat/question-card';
 import { Messages } from '@/components/chat/messages';
+import { LanguageNote } from '@/components/language-note';
 import { PlanProgress } from '@/components/plan/plan-panel';
 import { useT } from '@/lib/i18n';
 import { useChatActions } from '@/lib/use-chat';
@@ -84,6 +85,7 @@ export function PhotoChat({ trip, messages }: { trip: Trip; messages: Message[] 
   return (
     <div className="mx-auto flex w-full max-w-[760px] min-h-0 flex-1 flex-col gap-3 px-4">
       <div className="flex min-h-0 flex-1 flex-col justify-start gap-3 overflow-y-auto py-2">
+        <LanguageNote tripLanguage={trip.language} />
         <Messages messages={messages} variant="photo" />
         {card && !busy && back && (
           <p className="m-0 flex w-fit items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-[12px] text-white backdrop-blur-xl">

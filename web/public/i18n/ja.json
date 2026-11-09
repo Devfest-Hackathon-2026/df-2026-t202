@@ -35,7 +35,8 @@
     "start": "トップに戻る"
   },
   "trip": {
-    "untitled": "新しい旅行"
+    "untitled": "新しい旅行",
+    "otherLanguage": "この旅行の文章は{lang}です"
   },
   "auth": {
     "signInGoogle": "Google でログイン",

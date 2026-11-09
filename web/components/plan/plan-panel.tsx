@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Film, Play, Route, Search, type LucideIcon } from 'lucide-react';
+import { LanguageNote } from '@/components/language-note';
 import { PlacePhoto } from './place-photo';
 import { DayTabs } from '@/components/day-tabs';
 import { dayColor } from '@/components/map-canvas';
@@ -138,6 +139,8 @@ export function PlanPanel({
       <DayTabs days={plan.days} activeDay={activeDay} onDayChange={onDayChange} variant="inline" />
 
       <div className={BODY}>
+        {trip && <LanguageNote tripLanguage={trip.language} />}
+
         <div>
           <h2 className="m-0 text-[17px] text-white">{plan.title}</h2>
           {plan.subtitle && <p className="m-0 text-[13px] text-white/70">{plan.subtitle}</p>}

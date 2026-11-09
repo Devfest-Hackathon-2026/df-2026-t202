@@ -35,7 +35,8 @@
     "start": "New trip"
   },
   "trip": {
-    "untitled": "New trip"
+    "untitled": "New trip",
+    "otherLanguage": "This trip is written in {lang}"
   },
   "auth": {
     "signInGoogle": "Sign in with Google",
