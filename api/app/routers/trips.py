@@ -16,7 +16,7 @@ from app import flow
 from app.agents import concierge
 from app.auth import User, require_owner
 from app.models import ConciergeOutput, CreateTripIn, MessageIn, PlaceRef, Slots
-from app.services.firestore import add_message, db, now
+from app.services.firestore import add_message, db, get_trip, now
 from app.services.limits import check_message_limit, reserve_messages
 from app.services.llm import LLMError
 
@@ -70,6 +70,7 @@ async def post_message(trip_id: str, body: MessageIn, uid: User) -> dict:
 
 async def _handle_answer(trip_id: str, step: str, value) -> dict:
     trip_ref = db().collection("trips").document(trip_id)
+    value = await _resolve_dest(trip_id, step, value)
 
     @firestore.async_transactional
     async def apply(tx: firestore.AsyncTransaction) -> str:
@@ -98,6 +99,23 @@ async def _handle_answer(trip_id: str, step: str, value) -> dict:
         return flow.next_step(new_slots)
 
     return {"asking": await apply(db().transaction())}
+
+
+async def _resolve_dest(trip_id: str, step: str, value):
+    """Card answers carry a label but no place. Look it up, so the trip gets the real place id,
+    coordinates and country — the country is what picks the currency (flow._sync_currency).
+    A failed lookup keeps the label: the plan pipeline resolves places again anyway."""
+    if step != "dest" or not isinstance(value, dict) or value.get("placeId"):
+        return value
+    label = str(value.get("label") or "").strip()
+    if not label:
+        return value
+    trip = await get_trip(trip_id)
+    try:
+        place = await flow.search_place(label, (trip or {}).get("language", "en"))
+    except flow.PlaceLookupError:
+        return value
+    return place.model_dump(mode="json") if place else value
 
 
 async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
