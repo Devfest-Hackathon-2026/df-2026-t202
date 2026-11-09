@@ -96,9 +96,12 @@ def fake_world(monkeypatch, replace_with=None):
     async def local_name(place_id, country):
         return "黒川温泉" if place_id == "p-onsen" else None
 
-    async def shorts_for(place_id, name_local, region):
+    async def shorts_for(place_id, name_local, region, name=""):
         log.setdefault("videos", []).append(place_id)
         return [f"vid-{place_id}"]
+
+    async def cached(place_id):
+        return None
 
     async def leg(a, b, mode, lang):
         log["routes"].append(mode)
@@ -115,6 +118,7 @@ def fake_world(monkeypatch, replace_with=None):
         (places, "local_name", local_name),
         (routes, "leg", leg),
         (youtube, "shorts_for", shorts_for),
+        (youtube, "cached", cached),
     ]:
         monkeypatch.setattr(target, name, fn)
     return log
@@ -187,11 +191,11 @@ def test_warnings_long_drive_and_closed(monkeypatch):
     run.hours["s-102"] = OPEN_10_TO_17
     plan.days[0].stops[1].time = "09:30"
 
-    found = pipeline.add_warnings(plan, run)
+    found, closed = pipeline.add_warnings(plan, run)
 
     assert plan.days[0].stops[0].warn.startswith("About 6 h 0 min of driving")
     assert "closed" in plan.days[0].stops[1].warn
-    assert len(found) == 2
+    assert len(found) == 2 and closed == 1
 
 
 def test_match_far_from_the_rough_location_is_rejected(monkeypatch):
@@ -306,7 +310,7 @@ def test_start_and_end_keep_gemini_names(monkeypatch):
 def test_at_most_4_youtube_searches_at_once(monkeypatch):
     running, peak = 0, 0
 
-    async def shorts_for(place_id, name_local, region):
+    async def shorts_for(place_id, name_local, region, name=""):
         nonlocal running, peak
         running += 1
         peak = max(peak, running)
@@ -314,10 +318,194 @@ def test_at_most_4_youtube_searches_at_once(monkeypatch):
         running -= 1
         return ["v"]
 
+    async def cached(place_id):
+        return None
+
     monkeypatch.setattr(youtube, "shorts_for", shorts_for)
+    monkeypatch.setattr(youtube, "cached", cached)
     plan = draft_plan()
     plan.days[0].stops = [stop(f"s-1{i:02d}", "09:00", f"Spot {i}") for i in range(12)]
     for s in plan.days[0].stops:
         s.placeId = "p"
-    asyncio.run(pipeline.add_videos(plan, pipeline.Run(lang="en", near=None, country="JP", default_mode="DRIVE")))
+    run = pipeline.Run(lang="en", near=None, country="JP", default_mode="DRIVE")
+    asyncio.run(pipeline.add_videos(plan, run, max_searches=12))
     assert peak == 4 and all(s.videoIds == ["v"] for s in plan.days[0].stops)
+
+
+def jp_run(**kw):
+    return pipeline.Run(lang="en", near=None, country="JP", default_mode="TRANSIT", **kw)
+
+
+def test_videos_skip_hotels_and_stations_and_search_sights_first(monkeypatch):
+    searched = []
+
+    async def shorts_for(place_id, name_local, region, name=""):
+        searched.append(place_id)
+        return ["new"]
+
+    async def cached(place_id):
+        return ["old"] if place_id == "p-cached" else None
+
+    monkeypatch.setattr(youtube, "shorts_for", shorts_for)
+    monkeypatch.setattr(youtube, "cached", cached)
+    plan = draft_plan()
+    kinds = [("p-shop", "shop"), ("p-food", "food"), ("p-cached", "shop"), ("p-sight", "sight"), ("p-hotel", "sight")]
+    plan.days[0].stops = [stop(f"s-10{i}", "09:00", pid) for i, (pid, _) in enumerate(kinds)]
+    for s, (pid, kind) in zip(plan.days[0].stops, kinds, strict=True):
+        s.placeId, s.kind = pid, kind
+    run = jp_run()
+    run.types = {"s-104": {"lodging"}, "s-103": {"tourist_attraction"}}
+
+    asyncio.run(pipeline.add_videos(plan, run, max_searches=2))
+
+    assert searched == ["p-sight", "p-food"]  # sights first, then food; the shop is over the cap; no hotel search
+    assert [s.videoIds for s in plan.days[0].stops] == [[], ["new"], ["old"], ["new"], []]  # cached is free
+
+
+def test_transit_without_a_route_walks_when_close(monkeypatch):
+    asked = []
+
+    async def leg(a, b, mode, lang):
+        asked.append(mode)
+        return {"minutes": 20, "polyline": "w"} if mode == "WALK" else None  # no transit data in Japan
+
+    monkeypatch.setattr(routes, "leg", leg)
+    a, near, far = stop("s-101", "09:00", "A"), stop("s-102", "10:00", "B"), stop("s-103", "11:00", "C")
+    a.lat, a.lng, near.lat, near.lng, far.lat, far.lng = 35.0, 135.77, 35.012, 135.77, 35.2, 135.77  # 1.3 / 22 km
+    a.leg = near.leg = Leg(mode="TRANSIT", minutes=25)
+    plan = Plan(title="t", language="en", days=[Day(day=1, stops=[a, near, far])])
+
+    asyncio.run(pipeline.add_legs(plan, jp_run()))
+
+    assert (a.leg.mode, a.leg.minutes, a.leg.estimate) == ("WALK", 20, False)
+    assert (near.leg.mode, near.leg.minutes, near.leg.estimate) == ("TRANSIT", 25, True)  # the Planner's honest guess
+    assert asked == ["TRANSIT", "WALK", "TRANSIT"]
+
+
+def test_one_closed_stop_triggers_a_repair_with_its_opening_hours(monkeypatch):
+    log = fake_world(monkeypatch)
+    hours = {**OPEN_10_TO_17, "weekdayDescriptions": [f"Day{i}: 10:00 AM - 5:00 PM" for i in range(7)]}
+    monkeypatch.setitem(PLACES, "千穂の家", {**PLACES["千穂の家"], "openingHours": hours})
+
+    async def leg(a, b, mode, lang):
+        return {"minutes": 5, "polyline": "abc"}  # 09:00 + 60 + 5 -> the restaurant at 10:05 is open...
+
+    monkeypatch.setattr(routes, "leg", leg)
+    original = draft_plan
+
+    async def draft(slots, messages, lang):
+        plan = original()
+        plan.days[0].stops[1].kind = "food"
+        plan.days[0].stops[1].time = "17:30"  # ...but a meal keeps the Planner's (closed) time
+        return plan
+
+    monkeypatch.setattr(planner, "draft", draft)
+    asyncio.run(pipeline.run("t1"))
+
+    closed = [w for w in log["fix"][-1] if "closed" in w]
+    assert closed and "Opening hours: Day2: 10:00 AM - 5:00 PM" in closed[0]  # Wednesday, Monday-first list
+
+
+def test_no_repair_round_late_in_the_request(monkeypatch):
+    log = fake_world(monkeypatch)
+    monkeypatch.setattr(pipeline, "FIX_BEFORE_S", -1)
+    asyncio.run(pipeline.run("t1"))
+    assert log["fix"] == []  # Fake Cafe is dropped at once instead
+    assert log["saved"].checks == ["Fake Cafe: couldn't be found on Google Maps, so it was removed. Please check."]
+
+
+def test_cancelled_request_resets_the_status(monkeypatch):
+    log = fake_world(monkeypatch)
+
+    async def cancelled(*args):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(planner, "draft", cancelled)
+    try:
+        asyncio.run(pipeline.run("t1"))
+        raise AssertionError("should raise")
+    except asyncio.CancelledError:
+        pass
+    assert log["status"] == ["error"]
+
+
+def test_meal_never_moves_earlier_and_late_day_is_flagged():
+    plan = draft_plan()
+    dinner = plan.days[0].stops[-1]
+    dinner.kind, dinner.time = "food", "18:30"
+    pipeline.retime(plan)
+    assert dinner.time == "18:30"
+
+    plan.days[0].stops[0].stayMinutes = 20 * 60  # way too long: the day would end after midnight
+    pipeline.retime(plan)
+    found, _ = pipeline.add_warnings(plan, jp_run())
+    assert plan.days[0].stops[1].time == "23:55" and "past midnight" in plan.days[0].stops[1].warn
+    assert len(found) == 1
+
+
+def test_hotel_as_a_meal_goes_to_the_replacement_round(monkeypatch):
+    ryokan = {
+        "placeId": "p-ryokan",
+        "name": "Ryokan Sanga",
+        "lat": 33.08,
+        "lng": 131.14,
+        "countryCode": "JP",
+        "primaryType": "japanese_inn",
+        "types": ["japanese_inn", "lodging", "restaurant"],
+    }
+
+    async def search_text(query, lang, near=None):
+        return ryokan
+
+    monkeypatch.setattr(places, "search_text", search_text)
+    run = jp_run()
+    lunch, bath = stop("s-1", "12:00", "Ryokan Sanga"), stop("s-2", "15:00", "Ryokan Sanga")
+    lunch.kind, bath.kind = "food", "onsen"
+    assert asyncio.run(pipeline._find(lunch, run)) is None
+    assert pipeline._ask(1, lunch, run).startswith('Day 1: "Ryokan Sanga" is a hotel or ryokan')
+    assert asyncio.run(pipeline._find(bath, run))["placeId"] == "p-ryokan"  # a ryokan's bath is a fine onsen stop
+
+
+def test_seo_padded_google_name_keeps_gemini_name(monkeypatch):
+    found = {"placeId": "p-1", "lat": 43.0, "lng": 141.3, "countryCode": "JP"}
+    names = iter(["Sapporo's Secret Onsen Sanctuary Marukoma Onsen Ryokan", "Fushimi Inari Taisha"])
+
+    async def search_text(query, lang, near=None):
+        return {**found, "name": next(names)}
+
+    async def local_name(place_id, country):
+        return None
+
+    monkeypatch.setattr(places, "search_text", search_text)
+    monkeypatch.setattr(places, "local_name", local_name)
+    spa, shrine = stop("s-1", "09:00", "Marukoma Onsen Ryokan"), stop("s-2", "09:00", "Fushimi Inari Shrine")
+    spa.kind = "onsen"
+    asyncio.run(pipeline._verify_stop(spa, jp_run()))
+    asyncio.run(pipeline._verify_stop(shrine, jp_run()))
+    assert spa.name == "Marukoma Onsen Ryokan"  # Google's name is SEO padding
+    assert shrine.name == "Fushimi Inari Taisha"  # same place, official name
+
+
+def test_budget_check_when_the_estimate_may_exceed_it():
+    from app.models import Cost, Slots
+
+    run = jp_run()
+    slots = Slots.model_validate({"budget": {"basis": "person", "amount": 30000, "currency": "JPY"}})
+    plan = draft_plan()
+    plan.cost = Cost(basis="person", min=25000, max=35000)
+    pipeline.check_cost(plan, slots, run)
+    assert plan.checks == ["The estimate (35,000 JPY) may exceed your budget (30,000 JPY). Please check."]
+    pipeline.check_cost(plan, slots, run)
+    assert len(plan.checks) == 1  # already mentioned
+
+    plan.checks, plan.cost.basis = [], "total"
+    pipeline.check_cost(plan, slots, run)
+    assert plan.checks == []  # different basis: can't compare
+    plan.cost.basis, plan.cost.max = "person", 30000
+    pipeline.check_cost(plan, slots, run)
+    assert plan.checks == []  # within budget
+
+    ja = pipeline.Run(lang="ja", near=None, country="JP", default_mode="TRANSIT")
+    plan.cost.max = 40000
+    pipeline.check_cost(plan, slots, ja)
+    assert plan.checks[0].startswith("見積もり（最大40,000 JPY）がご予算（30,000 JPY）を超える")

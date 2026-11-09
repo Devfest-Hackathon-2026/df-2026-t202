@@ -9,6 +9,8 @@ from app.config import get_settings
 from app.routers import plan, trips
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
+# httpx logs every request URL at INFO, and YouTube puts the API key in the query string: keep it out of the logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 settings = get_settings()
 app = FastAPI(title="AI Trip Planner API", docs_url=None if settings.env == "production" else "/docs")

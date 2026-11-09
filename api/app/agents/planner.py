@@ -1,7 +1,8 @@
 """Planner agent (Person B). BACKEND_PERSON_B.md T3, PLAN.md 9.2 / 9.3 step 2.
 
 slots + full chat -> draft Plan with Gemini (GEMINI_MODEL_PLANNER) and prompts/planner.md. No grounding tools and the
-model's default thinking level: plan quality over speed (person_b_WHY.md, decisions 16-18).
+model's default thinking level for the draft: plan quality over speed (person_b_WHY.md, decisions 16-18). Repair
+rounds only edit a few stops, so they use LOW thinking and a shorter timeout (the whole run must fit Cloud Run's 300 s).
 The output is validated as `Plan` by llm.generate_json (one retry on invalid JSON, then llm.LLMError).
 """
 
@@ -17,12 +18,15 @@ from app.services import llm
 
 PROMPT_FILE = Path(__file__).parent.parent / "prompts" / "planner.md"
 LANGUAGE_NAMES = {"en": "English", "ja": "Japanese"}
-TIMEOUT_SECONDS = 120  # a full plan is long and we keep default thinking; per attempt
+TIMEOUT_SECONDS = 90  # per attempt; a draft takes ~30 s. Two attempts only after invalid JSON
+FIX_TIMEOUT_SECONDS = 45  # per attempt, LOW thinking
 MAX_CHAT_MESSAGES = 60  # the per-trip message limit
 
 FIX_TASK = (
     "Revise the plan in `plan` so it solves the problems in `warnings`. Keep everything else as it is: "
-    "same days, same must-visit places, same stop ids where the stop stays. Return the whole plan."
+    "same days, same must-visit places, same stop ids where the stop stays. A stop that is closed on arrival moves to "
+    "a time inside its opening hours (given in the warning) or is swapped for a nearby place that is open then. "
+    "Return the whole plan."
 )
 
 
@@ -51,9 +55,20 @@ def _chat(messages: list[dict]) -> list[dict]:
     return lines[-MAX_CHAT_MESSAGES:]
 
 
+def _range(item) -> None:
+    """A cost is always a range: swap a reversed one, widen a single price by about 10%."""
+    if item.min > item.max:
+        item.min, item.max = item.max, item.min
+    if item.min == item.max and item.max > 0:
+        item.min, item.max = round(item.max * 0.9), round(item.max * 1.1)
+
+
 def _clean(plan: Plan, lang: str) -> Plan:
     """Rules we enforce in code instead of trusting the model."""
     plan.language = lang
+    if plan.cost:
+        for item in [plan.cost, *plan.cost.items]:
+            _range(item)
     for day in plan.days:
         for i, stop in enumerate(day.stops):
             stop.placeId = None  # filled from Places by the pipeline; lat/lng stay as a rough guess (D50)
@@ -88,5 +103,7 @@ async def fix(plan: Plan, warnings: list[str], lang: str) -> Plan:
         {"task": FIX_TASK, "plan": plan.model_dump(mode="json"), "warnings": warnings},
         ensure_ascii=False,
     )
-    revised = await llm.generate_json(llm.MODEL_PLANNER, system_prompt(lang), user, Plan, timeout=TIMEOUT_SECONDS)
+    revised = await llm.generate_json(
+        llm.MODEL_PLANNER, system_prompt(lang), user, Plan, thinking="LOW", timeout=FIX_TIMEOUT_SECONDS
+    )
     return _clean(revised, lang)

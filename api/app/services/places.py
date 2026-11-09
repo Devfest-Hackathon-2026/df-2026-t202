@@ -14,6 +14,8 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
+import unicodedata
 
 import httpx
 
@@ -21,8 +23,9 @@ from app.config import get_settings
 from app.services import firestore
 
 BASE = "https://places.googleapis.com/v1"
-# regularOpeningHours is an Enterprise SKU field; we need it for the "outside opening hours" warning.
-PLACE_FIELDS = "id,displayName,location,regularOpeningHours,addressComponents,types"
+# regularOpeningHours is an Enterprise SKU field (D35), so every search is billed as Text Search Enterprise; the other
+# fields (types, primaryType) are Pro fields and cost nothing extra on top of that.
+PLACE_FIELDS = "id,displayName,location,regularOpeningHours,addressComponents,types,primaryType"
 SEARCH_FIELDS = ",".join(f"places.{f}" for f in PLACE_FIELDS.split(","))
 BIAS_RADIUS_M = 50_000.0  # the API maximum
 MAX_QUERY_CHARS = 200  # queries can be user text: keep them short
@@ -96,6 +99,7 @@ def parse_place(place: dict) -> dict:
         "countryCode": _country_code(place),
         "openingHours": place.get("regularOpeningHours"),
         "types": place.get("types", []),
+        "primaryType": place.get("primaryType"),
     }
 
 
@@ -157,3 +161,62 @@ async def local_name(place_id: str, country_code: str) -> str | None:
     lang = COUNTRY_LANG.get((country_code or "").upper(), "en")
     place = await _details(place_id, lang, "displayName")
     return place.get("displayName", {}).get("text") if place else None
+
+
+# ---------- Name matching (used to keep good names and to drop unrelated YouTube videos) ----------
+
+SPLIT = re.compile(r"[\s・･()（）「」『』【】\[\]〈〉<>|/,、。.:：!！?？#＃\-–—~〜'’\"]+")
+JA_SUFFIXES = (  # common endings; stripped (repeatedly) to get the distinctive part: 稲佐山山頂展望台 -> 稲佐山
+    "展望台", "展望所", "美術館", "博物館", "水族館", "商店街", "本店", "支店", "大社", "神社", "神宮", "山頂", "庭園",
+    "公園", "温泉", "市場", "通り", "店", "寺", "駅", "城", "峡", "滝", "湖", "橋", "港",
+)  # fmt: skip
+JA_GENERIC = set(JA_SUFFIXES) | {"ラーメン", "レストラン", "カフェ", "ホテル", "旅館", "観光", "夜景", "日本"}
+EN_COMMON = {
+    "the", "and", "shrine", "temple", "castle", "park", "garden", "gardens", "station", "onsen", "ramen", "restaurant",
+    "cafe", "market", "museum", "street", "tower", "japan", "hotel", "ryokan", "main", "store", "shop", "branch",
+    "night", "view", "views", "viewpoint", "observatory", "observation", "deck", "lake", "river", "beach", "island",
+    "mount", "mountain", "falls", "gorge", "bridge", "city", "town", "village", "house", "center", "centre", "hall",
+    "food", "sushi", "spring", "springs", "best", "famous", "sunset", "sunrise", "area", "national", "old", "new",
+    "great", "kitchen", "honten", "jinja", "dera", "tera",
+}  # fmt: skip
+
+
+def compact(text: str) -> str:
+    """Lower case, full-width -> half-width (NFKC), no spaces or punctuation."""
+    return SPLIT.sub("", unicodedata.normalize("NFKC", text).lower())
+
+
+def _strip_ja(word: str) -> str:
+    """Remove common endings while at least 3 characters stay: 稲佐山山頂展望台 -> 稲佐山."""
+    changed = True
+    while changed:
+        changed = False
+        for suffix in JA_SUFFIXES:
+            if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                word, changed = word[: -len(suffix)], True
+    return word
+
+
+def name_keys(name: str) -> set[str]:
+    """Distinctive pieces of a place name. Latin words need 4+ letters and must not be generic ("temple", "night").
+    Japanese words count whole and without common endings; generic ones ("本店", "ラーメン") never count, and
+    2-character pieces only when the name has nothing longer (so "黒亭" doesn't match "桃黒亭一門")."""
+    keys, short = set(), set()
+    for word in SPLIT.split(unicodedata.normalize("NFKC", name).lower()):
+        if not word:
+            continue
+        if word.isascii():
+            if len(word) >= 4 and word not in EN_COMMON:
+                keys.add(word)
+            continue
+        for piece in {word, _strip_ja(word)}:
+            if piece in JA_GENERIC:
+                continue
+            (keys if len(piece) >= 3 else short).add(piece)
+    return keys or short
+
+
+def mentions(text: str, *names: str) -> bool:
+    """Does `text` (a video title, another name) contain a distinctive piece of one of the names?"""
+    flat = compact(text)
+    return any(key in flat for name in names if name for key in name_keys(name))

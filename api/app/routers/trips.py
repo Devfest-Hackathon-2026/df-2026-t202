@@ -136,17 +136,22 @@ async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
     dest: PlaceRef | None = None
     origin: PlaceRef | None = None
     clarify = out.clarify[:MAX_AI_TEXT_LENGTH] if out and out.clarify else None
+    comment = out.comment[:MAX_AI_TEXT_LENGTH] or None if out else None
     try:
         if out and out.updates.dest:
             dest = await flow.search_place(out.updates.dest, lang)
-            if dest is None and not clarify:
-                clarify = flow.text_for("place_not_found", lang)
+            if dest is None:
+                # Gemini's comment may claim the change ("Hokkaido it is!"): show only the ask-back.
+                _log_place_ignored(trip_id, "dest")
+                comment, clarify = None, flow.text_for("place_not_found", lang)
         if out and out.updates.origin:
             origin = await flow.search_place(out.updates.origin, lang)
+            if origin is None:
+                _log_place_ignored(trip_id, "origin")
     except flow.PlaceLookupError:
         # Places is down: keep the other updates, ask again for the place (no 500).
         dest = origin = None
-        clarify = flow.text_for("place_lookup_failed", lang)
+        comment, clarify = None, flow.text_for("place_lookup_failed", lang)
 
     trip_ref = db().collection("trips").document(trip_id)
 
@@ -178,12 +183,16 @@ async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
             new_slots,
             text,
             None,
-            comment=(out.comment or "")[:MAX_AI_TEXT_LENGTH] or None,
+            comment=comment,
             clarify=clarify,
         )
         return current["asking"] if clarify else flow.next_step(new_slots)
 
     return {"asking": await apply(db().transaction())}
+
+
+def _log_place_ignored(trip_id: str, step: str) -> None:
+    log.info(json.dumps({"msg": "concierge_value_ignored", "tripId": trip_id, "step": step, "err": "place_not_found"}))
 
 
 def _write_turn(

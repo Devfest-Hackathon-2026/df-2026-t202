@@ -126,6 +126,55 @@ def test_merge_updates_ignores_invalid_values():
     assert new.dates is None and new.status["dates"] == "empty"
 
 
+def test_merge_updates_amount_only_keeps_budget_basis():
+    slots = flow.apply_answer(Slots(), "dest", KYUSHU)
+    slots = flow.apply_answer(slots, "budget", {"basis": "total", "amount": 100000})
+    new = flow.merge_updates(slots, SlotUpdates.model_validate({"budget": {"amount": 80000}}))
+    assert (new.budget.basis, new.budget.amount, new.budget.currency) == ("total", 80000, "JPY")
+
+
+def test_card_budget_answer_still_replaces():
+    slots = flow.apply_answer(Slots(), "dest", KYUSHU)
+    slots = flow.apply_answer(slots, "budget", {"basis": "total", "amount": 100000})
+    new = flow.apply_answer(slots, "budget", {"basis": "person", "amount": 30000})
+    assert (new.budget.basis, new.budget.amount) == ("person", 30000)
+
+
+def test_budget_before_dest_takes_the_dest_currency_later():
+    new = flow.merge_updates(Slots(), SlotUpdates.model_validate({"budget": {"amount": 80000}}))
+    assert new.budget.currency == "USD"  # placeholder: no destination yet
+    new = flow.merge_updates(new, SlotUpdates(dest="kyushu"), dest=PlaceRef.model_validate(KYUSHU))
+    assert (new.budget.amount, new.budget.currency) == (80000, "JPY")
+    # Once the currency came from a destination, a later destination change keeps it (unchanged rule).
+    new = flow.apply_answer(new, "dest", {"label": "Seoul", "countryCode": "KR"})
+    assert new.budget.currency == "JPY"
+
+
+def test_named_currency_survives_dest_change():
+    slots = flow.apply_answer(Slots(), "dest", KYUSHU)
+    slots = flow.merge_updates(slots, SlotUpdates.model_validate({"budget": {"amount": 2000, "currency": "USD"}}))
+    new = flow.apply_answer(slots, "dest", {"label": "Seoul", "countryCode": "KR"})
+    assert new.budget.currency == "USD"
+
+
+def test_merge_updates_adds_to_prefs_and_musts_but_card_replaces():
+    slots = flow.apply_answer(Slots(), "prefs", ["onsen", "food"])
+    slots = flow.apply_answer(slots, "musts", ["Aso"])
+    new = flow.merge_updates(slots, SlotUpdates(prefs=["shopping", "onsen"], musts=["Takachiho"]))
+    assert new.prefs == ["onsen", "food", "shopping"] and new.musts == ["Aso", "Takachiho"]
+    full = flow.merge_updates(Slots(prefs=[f"p{i}" for i in range(flow.MAX_LIST_ITEMS)]), SlotUpdates(prefs=["x"]))
+    assert len(full.prefs) == flow.MAX_LIST_ITEMS
+    assert flow.apply_answer(new, "prefs", ["views"]).prefs == ["views"]
+
+
+def test_merge_updates_partial_people_keeps_the_others():
+    slots = flow.apply_answer(Slots(), "people", {"adult": 2})
+    new = flow.merge_updates(slots, SlotUpdates.model_validate({"people": {"child": 1}}))
+    assert (new.people.adult, new.people.child, new.people.infant) == (2, 1, 0)
+    first = flow.merge_updates(Slots(), SlotUpdates.model_validate({"people": {"adult": 3}}))
+    assert (first.people.adult, first.people.child) == (3, 0)
+
+
 def test_skip_does_not_override_done():
     slots = flow.apply_answer(Slots(), "people", {"adult": 2})
     new = flow.merge_updates(slots, SlotUpdates(skip=["people"]))

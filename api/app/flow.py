@@ -12,7 +12,7 @@ from datetime import date
 from typing import Any
 
 import httpx
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
 from app.models import STEP_ORDER, Budget, DateRange, People, PlaceRef, Slots, SlotUpdates, UiCard
@@ -147,10 +147,14 @@ def _country(slots: Slots) -> str | None:
     return slots.dest.countryCode if slots.dest else None
 
 
-def _sync_currency(slots: Slots) -> None:
-    """When the destination changes, the budget currency follows it, unless the user already set an amount."""
-    if slots.status.get("budget") == "done" and slots.budget and slots.budget.amount is not None:
-        return
+def _sync_currency(slots: Slots, old_country: str | None) -> None:
+    """When the destination changes, the budget currency follows it, unless the user already set an amount.
+    Exception: an amount set before any destination got the placeholder currency_for(None); the new
+    destination's currency replaces it (the amount was meant in local money, not USD)."""
+    b = slots.budget
+    if slots.status.get("budget") == "done" and b and b.amount is not None:
+        if old_country or b.currency != currency_for(None):
+            return
     currency = currency_for(_country(slots))
     slots.budget = (slots.budget or Budget()).model_copy(update={"currency": currency})
 
@@ -189,8 +193,9 @@ def _set_dest(slots: Slots, value: Any) -> None:
     place = _place(value)
     if not place.label:
         raise ValueError("label is empty")
+    old_country = _country(slots)
     slots.dest = place
-    _sync_currency(slots)
+    _sync_currency(slots, old_country)
 
 
 def _set_dates(slots: Slots, value: Any) -> None:
@@ -281,13 +286,18 @@ def merge_updates(
     slots: Slots, updates: SlotUpdates, dest: PlaceRef | None = None, origin: PlaceRef | None = None
 ) -> Slots:
     """Merge Concierge updates. `dest`/`origin` are the free-text places already resolved with Places
-    (unresolved ones are left out). Each field that is set marks its step "done"."""
+    (unresolved ones are left out). Each field that is set marks its step "done".
+
+    Unlike card answers, partial values overlay the current ones (people, budget) and prefs/musts are
+    added to the current lists: the prompt tells Gemini to send only what changed. Removing an item is
+    done with the card, which replaces the list."""
     new = slots.model_copy(deep=True)
 
     if dest is not None:
+        old_country = _country(new)
         new.dest = dest
         new.status["dest"] = "done"
-        _sync_currency(new)
+        _sync_currency(new, old_country)
     if origin is not None:
         new.origin = origin
     if updates.dates is not None:
@@ -295,20 +305,26 @@ def merge_updates(
     elif updates.nights is not None:
         _try(new, "dates", {"nights": updates.nights})
     if updates.people is not None:
-        _try(new, "people", updates.people.model_dump())
+        _try(new, "people", _overlay(new.people, updates.people))
     if updates.budget is not None:
         # Only the fields Gemini set, so the destination's currency is kept unless the user named one.
-        _try(new, "budget", updates.budget.model_dump(exclude_unset=True))
+        _try(new, "budget", _overlay(new.budget, updates.budget))
     if updates.transport is not None:
         _try(new, "transport", updates.transport)
     if updates.prefs is not None:
-        _try(new, "prefs", updates.prefs)
+        _try(new, "prefs", new.prefs + updates.prefs)  # _string_list dedupes and caps
     if updates.musts is not None:
-        _try(new, "musts", updates.musts)
+        _try(new, "musts", new.musts + updates.musts)
     for step in updates.skip:
         if new.status.get(step) == "empty":
             new.status[step] = "skip"
     return new
+
+
+def _overlay(current: BaseModel | None, update: BaseModel) -> dict:
+    """The current value with only the fields Gemini set replaced ({"child": 1} keeps the adults)."""
+    base = current.model_dump() if current else {}
+    return {**base, **update.model_dump(exclude_unset=True)}
 
 
 def _try(slots: Slots, step: str, value: Any) -> None:

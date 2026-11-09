@@ -85,7 +85,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 
 | Layer | Choice |
 |---|---|
-| Front-end framework | **Next.js 16** (App Router, React 19). Switched from Angular on Nov 9: the only front-end code was a skeleton, the team knows Next.js, and App Hosting has preconfigured support for it (see `docs/decisions.md` D58). |
+| Front-end framework | **Next.js 16** (App Router, React 19). Switched from Angular on Nov 9: the only front-end code was a skeleton, the team knows Next.js, and App Hosting has preconfigured support for it (see `docs/decisions.md` D70). |
 | Styling | **Tailwind CSS v4**. The design tokens live in `@theme` in `app/globals.css`, so each one is both a CSS variable and a utility (`--color-ink` → `bg-ink`). No component library. |
 | Map | `@vis.gl/react-google-maps` (the Google Maps Platform React library) + Maps JavaScript API |
 | Destination search | Places Autocomplete (Maps JavaScript API, Places library) |
@@ -416,7 +416,7 @@ Plan quality comes before speed: the Planner alone takes about 30 s, so a plan m
 
 ### 10.1 Screens
 
-The design mock (team canvas, `docs/decisions.md` D59) puts the whole trip in **one screen**: a full-screen
+The design mock (team canvas, `docs/decisions.md` D71) puts the whole trip in **one screen**: a full-screen
 map with a bottom sheet over it. The sheet has two tabs and three heights (peek / half / full).
 
 | Screen | Route | MVP? | Contents |
@@ -453,7 +453,7 @@ right, and the place card and the Shorts viewer sit beside the column instead of
 
 ### 10.4 Design
 
-Tokens live in `web/app/globals.css` and come from the design mock (`docs/decisions.md` D59). Never hard-code a color.
+Tokens live in `web/app/globals.css` and come from the design mock (`docs/decisions.md` D71). Never hard-code a color.
 
 - Start screen: the dusk-seascape image (`web/public/dusk.webp`) with frosted-glass panels on top. Inside a trip, the map is the background.
 - Frosted glass in three depths: `.frost` (bars and chips), the sheet, and cards over the photo.
@@ -522,7 +522,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 - [ ] INF: GCP project, billing, budget alert, enable APIs (Vertex AI, Maps JS, Places New, Routes, YouTube Data v3, Secret Manager, Cloud Run, Firestore).
 - [ ] INF: Firebase project, Auth (Google + anonymous), Firestore, App Check.
 - [ ] INF: Create API keys, restrict them, store server keys in Secret Manager.
-- [x] FE: front-end skeleton, deploy "hello" to App Hosting. (Angular on Nov 8; rebuilt on Next.js on Nov 9, D58.)
+- [x] FE: front-end skeleton, deploy "hello" to App Hosting. (Angular on Nov 8; rebuilt on Next.js on Nov 9, D70.)
 - [ ] BE: FastAPI skeleton with `/healthz`, deploy to Cloud Run (`gcloud run deploy --source`).
 - [ ] DES: Name the app. Simple mockups of S1 and S3.
 - **Check:** both URLs work on a phone.
@@ -658,6 +658,6 @@ Everything in the video must be real app output.
 
 - [ ] Final app name
 - [ ] Team members and roles (FE / BE / INF / DES)
-- [x] Front-end framework: **Next.js** (decided 2026-11-09, `docs/decisions.md` D58). Angular was the first choice until then.
+- [x] Front-end framework: **Next.js** (decided 2026-11-09, `docs/decisions.md` D70). Angular was the first choice until then.
 - [ ] Track: in-person venue or online?
 - [ ] Evidence for the problem (survey?)

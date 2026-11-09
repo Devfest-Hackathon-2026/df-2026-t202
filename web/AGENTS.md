@@ -2,7 +2,7 @@
 
 Adds to the root `AGENTS.md`. Spec: PLAN.md section 10. **Next.js 16** (App Router), **React 19**, TypeScript,
 **Tailwind CSS v4**, `@vis.gl/react-google-maps`, Firebase JS SDK. Node ≥ 22.12, npm 11.
-The framework changed from Angular on 2026-11-09 — see `docs/decisions.md` D58.
+The framework changed from Angular on 2026-11-09 — see `docs/decisions.md` D70.
 
 ## Layout (✅ exists, ⬜ to build)
 

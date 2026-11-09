@@ -23,6 +23,7 @@ from app.agents import planner  # noqa: E402
 from app.models import Slots  # noqa: E402
 
 SLOTS_FILE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "demo_slots.json"
+PRECACHE_SEARCHES = 30  # cache every demo stop, not only the per-plan cap
 DEMO_CHAT = [{"role": "user", "text": "Takachiho Gorge and Mt. Inasa night view are a must"}]  # PLAN.md 17 step 3
 
 
@@ -37,7 +38,7 @@ async def main(runs: int, lang: str) -> None:
         )
         missing = await pipeline.verify(plan, run)
         pipeline.drop(plan, missing, run)
-        await pipeline.add_videos(plan, run)
+        await pipeline.add_videos(plan, run, max_searches=PRECACHE_SEARCHES)
         for stop in (s for day in plan.days for s in day.stops if s.placeId):
             seen[stop.placeId] = (stop.name, len(stop.videoIds))
         print(f"  {sum(len(d.stops) for d in plan.days)} stops, {len(missing)} not found on Google Maps")
