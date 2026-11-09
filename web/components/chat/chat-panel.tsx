@@ -9,7 +9,7 @@ import { STEP_ORDER, type Message, type StepKey, type Trip } from '@/lib/types';
 import { CardShell, Messages, TypingBubble, useAwaitingReply, useFirstCardDelay } from './messages';
 import { QuestionCard } from './question-card';
 
-const STATE_TEXT = 'px-4 py-2 text-[13px] text-white/70 desk:px-[18px]';
+const STATE_TEXT = 'px-4 py-2 text-[14px] text-muted-strong desk:px-5';
 
 /**
  * S1 chat + S2 slot chips. The server decides the next card; this only renders it
@@ -72,9 +72,9 @@ export function ChatPanel({
   if (!trip) return <p className={STATE_TEXT}>{t('state.notFound')}</p>;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col bg-transparent pt-1 text-ink">
       <div
-        className="noscroll flex flex-none gap-1.5 overflow-x-auto px-4 pb-2 desk:px-[18px]"
+        className="noscroll flex flex-none gap-1.5 overflow-x-auto border-b border-line-soft px-4 pb-3 desk:px-5"
         aria-label={t('slot.summary')}
       >
         {STEP_ORDER.map((step) => (
@@ -83,8 +83,8 @@ export function ChatPanel({
             className={[
               'flex flex-none items-center gap-1 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap',
               trip.slots.status[step] === 'done'
-                ? 'border-white/20 bg-white/15 font-semibold text-white'
-                : 'border-white/10 bg-transparent text-white/55',
+                ? 'border-line-soft bg-fill-soft font-medium text-ink'
+                : 'border-line-soft bg-surface text-muted-strong',
             ].join(' ')}
           >
             {trip.slots.status[step] === 'done' && (
@@ -95,8 +95,8 @@ export function ChatPanel({
         ))}
       </div>
 
-      <div ref={scroller} className="noscroll min-h-0 flex-1 overflow-y-auto px-4 desk:px-[18px]">
-        <div ref={content} className="flex flex-col gap-2.5 pt-4 pb-5">
+      <div ref={scroller} className="noscroll min-h-0 flex-1 overflow-y-auto px-4 desk:px-5">
+        <div ref={content} className="flex flex-col gap-3 pt-5 pb-5">
           {messages.length === 0 && <p className={STATE_TEXT}>{t('state.empty')}</p>}
           <Messages messages={messages} variant="sheet" />
           {card && !planning && (
@@ -119,7 +119,7 @@ export function ChatPanel({
       </div>
 
       <form
-        className="flex flex-none gap-2 border-t border-white/15 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] desk:px-[18px]"
+        className="flex flex-none gap-2 border-t border-line-soft bg-surface/90 backdrop-blur-xl px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] desk:px-5"
         onSubmit={(e) => {
           e.preventDefault();
           const value = text.trim();
@@ -129,7 +129,7 @@ export function ChatPanel({
         }}
       >
         <input
-          className="min-h-11 min-w-0 flex-1 rounded-full border border-white/25 bg-white/10 px-3.5 font-inherit text-white placeholder:text-white/50"
+          className="min-h-11 min-w-0 flex-1 rounded-xl border border-line bg-fill-soft px-3.5 text-[15px] font-inherit text-ink placeholder:text-muted-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           value={text}
           placeholder={t('chat.inputPlaceholder')}
           aria-label={t('chat.input')}
@@ -138,7 +138,7 @@ export function ChatPanel({
         />
         <button
           type="submit"
-          className="bg-accent text-on-accent disabled:bg-line disabled:text-muted flex h-11 w-11 flex-none items-center justify-center rounded-full border-0"
+          className="bg-accent text-on-accent disabled:bg-line disabled:text-muted flex h-11 w-11 flex-none items-center justify-center rounded-xl border-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           aria-label={t('chat.send')}
           disabled={busy || !text.trim()}
         >

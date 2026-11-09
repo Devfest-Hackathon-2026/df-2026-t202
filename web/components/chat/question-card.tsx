@@ -26,20 +26,20 @@ import { useLanguage, useT } from '@/lib/i18n';
 import type { Slots, StepKey, TransportMode, UiCard } from '@/lib/types';
 
 const CARD =
-  'rise stagger mt-1 flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/78 p-4 shadow-[0_12px_40px_rgba(8,24,48,0.22)] backdrop-blur-2xl backdrop-saturate-150';
+  'rise stagger mt-1 flex flex-col gap-3 rounded-2xl border border-line-soft bg-surface/90 p-4 shadow-[0_12px_40px_rgba(8,24,48,0.22)] backdrop-blur-2xl backdrop-saturate-150';
 const HINT = 'text-muted-strong text-center text-[12px]';
-const PILL_OFF = 'text-ink border-ink/15 min-h-10 rounded-full border bg-white/70 px-4 text-[13px]';
+const PILL_OFF = 'text-ink border-ink/15 min-h-10 rounded-full border bg-surface px-4 text-[13px]';
 const PILL_ON =
-  'bg-ink text-on-accent min-h-10 rounded-full border border-transparent px-4 text-[13px] font-semibold';
+  'bg-control text-on-control min-h-10 rounded-full border border-transparent px-4 text-[13px] font-semibold';
 const INPUT =
-  'text-ink placeholder:text-muted border-ink/15 min-h-11 min-w-0 flex-1 rounded-xl border bg-white/70 px-3 font-inherit';
+  'text-ink placeholder:text-muted border-ink/15 min-h-11 min-w-0 flex-1 rounded-xl border bg-surface px-3 font-inherit';
 const ACTIONS = 'flex items-center justify-end gap-2';
 const PRIMARY =
   'bg-accent text-on-accent disabled:bg-line disabled:text-muted min-h-11 rounded-xl border-0 px-5 text-sm font-semibold';
 const GHOST =
-  'text-muted-strong border-ink/15 min-h-11 rounded-xl border bg-white/70 px-3.5 text-sm';
+  'text-muted-strong border-ink/15 min-h-11 rounded-xl border bg-surface px-3.5 text-sm';
 const ROUND =
-  'text-ink disabled:text-ink/25 border-ink/15 flex h-11 w-11 flex-none items-center justify-center rounded-full border bg-white/70';
+  'text-ink disabled:text-ink/25 border-ink/15 flex h-11 w-11 flex-none items-center justify-center rounded-full border bg-surface';
 
 export type AnswerFn = (step: StepKey, value: unknown) => void;
 
@@ -49,7 +49,7 @@ function BackButton({ onBack, disabled }: { onBack: () => void; disabled: boolea
   return (
     <button
       type="button"
-      className="text-muted-strong border-ink/15 mr-auto flex min-h-11 items-center gap-1.5 rounded-xl border bg-white/70 px-3 text-sm"
+      className="text-muted-strong border-ink/15 mr-auto flex min-h-11 items-center gap-1.5 rounded-xl border bg-surface px-3 text-sm"
       disabled={disabled}
       onClick={onBack}
     >
@@ -198,8 +198,8 @@ function DestCard({
               className={[
                 'flex min-h-[64px] flex-col justify-center gap-0.5 rounded-xl border px-3 py-2 text-left transition-colors',
                 inside.includes(key)
-                  ? 'bg-ink text-on-accent border-transparent'
-                  : 'border-ink/15 bg-white/70',
+                  ? 'bg-control text-on-control border-transparent'
+                  : 'border-ink/15 bg-surface',
               ].join(' ')}
               disabled={disabled}
               onClick={() => toggle(key)}
@@ -218,7 +218,7 @@ function DestCard({
         <div className={ACTIONS}>
           <button
             type="button"
-            className="text-muted-strong border-ink/15 mr-auto flex min-h-11 items-center gap-1.5 rounded-xl border bg-white/70 px-3 text-sm"
+            className="text-muted-strong border-ink/15 mr-auto flex min-h-11 items-center gap-1.5 rounded-xl border bg-surface px-3 text-sm"
             disabled={disabled}
             onClick={() => setBroad(null)}
           >
@@ -276,7 +276,7 @@ function DestCard({
           <button
             key={key}
             type="button"
-            className="hover:border-ink border-ink/15 flex min-h-[64px] flex-col justify-center gap-0.5 rounded-xl border bg-white/70 px-3 py-2 text-left transition-colors"
+            className="hover:border-ink border-ink/15 flex min-h-[64px] flex-col justify-center gap-0.5 rounded-xl border bg-surface px-3 py-2 text-left transition-colors"
             disabled={disabled}
             onClick={() =>
               BROAD[key]
@@ -447,7 +447,7 @@ function DatesCard({ disabled, onAnswer, onBack }: CardProps) {
                 type="button"
                 className={[
                   'h-8 w-8 rounded-full border-0 text-sm',
-                  isEdge ? 'bg-ink text-on-accent font-semibold' : '',
+                  isEdge ? 'bg-control text-on-control font-semibold' : '',
                   !isEdge && past ? 'text-line line-through' : '',
                   !isEdge && !past ? 'text-ink bg-transparent' : '',
                 ].join(' ')}
@@ -633,7 +633,7 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
             aria-pressed={basis === value}
             className={
               basis === value
-                ? 'text-ink min-h-[38px] rounded-lg border-0 bg-white text-[13px] font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]'
+                ? 'text-ink min-h-[38px] rounded-lg border-0 bg-surface text-[13px] font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.12)]'
                 : 'text-muted min-h-[38px] rounded-lg border-0 bg-transparent text-[13px]'
             }
             disabled={disabled}
@@ -805,8 +805,8 @@ function TransportCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
               className={[
                 'flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-xl border text-[12px] transition-colors',
                 on
-                  ? 'bg-ink text-on-accent border-transparent font-semibold'
-                  : 'border-ink/15 bg-white/70 text-ink',
+                  ? 'bg-control text-on-control border-transparent font-semibold'
+                  : 'border-ink/15 bg-surface text-ink',
               ].join(' ')}
               disabled={disabled}
               onClick={() => toggle(mode)}
@@ -1084,7 +1084,7 @@ function ReadyCard({
         {onBack && (
           <button
             type="button"
-            className="text-muted-strong border-ink/15 flex h-11 w-11 flex-none items-center justify-center rounded-xl border bg-white/70"
+            className="text-muted-strong border-ink/15 flex h-11 w-11 flex-none items-center justify-center rounded-xl border bg-surface"
             aria-label={t('card.back')}
             disabled={disabled}
             onClick={onBack}

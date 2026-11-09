@@ -28,14 +28,14 @@ const AI = {
   photo:
     'max-w-[85%] self-start rounded-[18px_18px_18px_4px] border border-white/15 bg-stone-900/55 px-4 py-2.5 text-[15px] leading-[1.7] whitespace-pre-line text-white backdrop-blur-xl',
   sheet:
-    'max-w-[88%] self-start rounded-[18px_18px_18px_4px] border border-white/10 bg-white/14 px-3.5 py-2.5 text-[14.5px] leading-[1.6] whitespace-pre-line text-white shadow-[0_1px_2px_rgba(0,0,0,0.12)]',
+    'max-w-[88%] self-start rounded-[18px_18px_18px_4px] bg-fill-soft px-4 py-3 text-[15px] leading-[1.65] whitespace-pre-line text-ink',
 };
 
 const ME = {
   photo:
     'text-ink max-w-[85%] self-end rounded-[18px_18px_4px_18px] border border-white/60 bg-white/55 px-3.5 py-2 text-[15px] leading-[1.6] whitespace-pre-line backdrop-blur-xl',
   sheet:
-    'text-ink max-w-[80%] self-end rounded-[18px_18px_4px_18px] bg-white/92 px-3.5 py-2 text-[14.5px] leading-[1.55] whitespace-pre-line shadow-[0_1px_2px_rgba(0,0,0,0.12)]',
+    'bg-control text-on-control max-w-[80%] self-end rounded-[18px_18px_4px_18px] px-4 py-2.5 text-[15px] leading-[1.6] whitespace-pre-line',
 };
 
 /**

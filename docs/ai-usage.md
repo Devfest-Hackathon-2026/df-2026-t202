@@ -30,3 +30,7 @@ One line per meaningful use. Note what the AI proposed and what the team kept or
 - 2026-11-09 · Claude Code: Shorts travel ranking (D81): travel word in the YouTube query, rank by travel words/hashtags in title, description and tags, then views; cache version. Raghav proposed the idea (views + travel hashtags) and chose the option.
 - 2026-11-09 · Claude Code: walk-only transit routes treated as no route, and the leg label shows the mode first (D82). Raghav found the bug in testing and chose the options.
 - 2026-11-09 · Claude Code: faster plan builds (D83): one combined repair round returning only changed days (`PlanFix`), trimmed repair input, honest progress card with ETA. Measured from production logs and real runs; Nazmul chose to optimize without lowering draft quality.
+
+- 2026-11-09 · Codex: improved itinerary readability in the plan panel, header, and day controls; retained existing data and interactions. Nazmul requested the light-surface design after reviewing alternatives, then requested one shared non-white background; Codex applied the original dusk photo with a scoped slate overlay across the header, tabs, chat, and itinerary (D84).
+
+- 2026-11-10 · Codex: diagnosed missing YouTube suggestions from the saved local plan and API logs (32 stops, zero video IDs; upstream HTTP 429). Nazmul chose to keep normal behavior: show videos when returned, otherwise load the plan without them. Removed the proposed search links and added rendering regression tests for both states.

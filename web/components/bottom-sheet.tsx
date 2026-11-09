@@ -82,8 +82,8 @@ export function BottomSheet({
   return (
     <section
       className={[
-        'sheet-in absolute inset-x-0 bottom-0 z-40 flex flex-col overflow-hidden rounded-t-2xl',
-        'border border-white/15 bg-stone-900/50 bg-clip-padding shadow-[0_24px_60px_rgba(4,12,26,0.45)] backdrop-blur-2xl',
+        'trip-sheet sheet-in absolute inset-x-0 bottom-0 z-40 flex flex-col overflow-hidden rounded-t-2xl',
+        'border border-line-soft bg-surface bg-clip-padding shadow-[0_8px_30px_rgba(4,12,26,0.16)]',
         dragHeight === null ? 'transition-[height] duration-350 ease-(--ease-sheet)' : '',
         'desk:inset-x-auto desk:top-4 desk:bottom-4 desk:left-4 desk:h-auto! desk:w-[440px] desk:rounded-2xl desk:transition-none',
       ].join(' ')}

@@ -27,6 +27,23 @@
   --color-ok: #059669;
   /* "Please check" warnings on the dark panels */
   --color-warn: #fbbf24;
+  --color-warning-surface: #fff4d6;
+  --color-warning-ink: #854d0e;
+
+  /* Shared controls and the slate trip sheet. */
+  --color-control: #222222;
+  --color-on-control: #ffffff;
+  --color-sheet-surface: #192a34;
+  --color-sheet-fill: #12212b;
+  --color-sheet-fill-soft: #243a46;
+  --color-sheet-ink: #eef4f5;
+  --color-sheet-muted: #b6c4cc;
+  --color-sheet-muted-strong: #c4d1d7;
+  --color-sheet-line: #425762;
+  --color-sheet-line-soft: #314650;
+  --color-sheet-control: #3b596a;
+  --color-sheet-warning-surface: #453a22;
+  --color-sheet-warning-ink: #f9d38a;
 
   /* Map */
   --color-map-water: #cfe3f0;
@@ -98,6 +115,31 @@
 }
 
 @layer components {
+  .trip-sheet {
+    --color-surface: var(--color-sheet-surface);
+    --color-fill: var(--color-sheet-fill);
+    --color-fill-soft: var(--color-sheet-fill-soft);
+    --color-ink: var(--color-sheet-ink);
+    --color-ink-strong: var(--color-sheet-ink);
+    --color-muted: var(--color-sheet-muted);
+    --color-muted-strong: var(--color-sheet-muted-strong);
+    --color-line: var(--color-sheet-line);
+    --color-line-soft: var(--color-sheet-line-soft);
+    --color-control: var(--color-sheet-control);
+    --color-warning-surface: var(--color-sheet-warning-surface);
+    --color-warning-ink: var(--color-sheet-warning-ink);
+    color: var(--color-ink);
+    color-scheme: dark;
+    background-image:
+      linear-gradient(
+        color-mix(in srgb, var(--color-sheet-surface) 82%, transparent),
+        color-mix(in srgb, var(--color-sheet-surface) 84%, transparent)
+      ),
+      url('/dusk.webp');
+    background-size: cover;
+    background-position: 50% 45%;
+  }
+
   /*
    * Glass over the map. Same recipe as the sign-in card (50-ish opacity, a wide blur, a thin
    * light edge); light instead of dark, because what sits on it is ink-coloured text.
@@ -110,6 +152,11 @@
       0 8px 24px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(56px) saturate(1.5);
     -webkit-backdrop-filter: blur(56px) saturate(1.5);
+  }
+
+  /* White text straight on the glass panel: a soft shadow keeps it readable over a light map. */
+  .on-glass {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
 
   /* Scrolls without a visible bar, and never passes the scroll on to the page behind it. */

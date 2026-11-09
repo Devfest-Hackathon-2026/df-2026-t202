@@ -404,7 +404,7 @@ Plan quality comes before speed: the Planner alone takes about 30 s, so a plan t
   the most views. Videos without a travel sign are kept, ranked last (D81).
 - Cache by `placeId` for 7 days in `cache_videos/{placeId}` (with a version `v`; a new way of picking re-searches).
 - The default quota allows about 100 searches per day. Pre-cache all demo spots before recording.
-- Fallback when nothing is found: a "Search on YouTube" link + a Places photo.
+- When nothing is found or YouTube is rate-limited, the plan still loads without videos; the place panel shows a Places photo when available. No YouTube search links. A later successful plan generation shows its returned videos normally.
 
 ### 9.5 Places, Routes, Maps links
 
@@ -464,12 +464,13 @@ right, and the place card and the Shorts viewer sit beside the column instead of
 Tokens live in `web/app/globals.css` and come from the design mock (`docs/decisions.md` D71). Never hard-code a color.
 
 - Start screen: the dusk-seascape image (`web/public/dusk.webp`) with frosted-glass panels on top. Inside a trip, the map is the background.
-- Frosted glass in three depths: `.frost` (bars and chips), the sheet, and cards over the photo.
+- Frosted glass for map bars/chips and the initial chat over the start photo. Once a plan exists, the entire sheet shares the original dusk photo under an 82–84% slate overlay across its header, tabs, chat, and itinerary, with soft light text. Chat uses raised slate AI bubbles, muted blue user bubbles, and a matching composer. Sticky day headers and the chat composer use nearly opaque slate surfaces so scrolling text stays readable. The itinerary has sticky day headers, numbered stops, and separate neutral travel rows. Tabs are slate segmented controls with an outlined Share button; the trip title appears once (D84).
 - Ink `--ink` #222222, secondary text `--muted` #6A6A6A, lines `--line` #DDDDDD.
 - Primary buttons and the send button: `--accent` #D9443B. Selected pills: solid ink.
 - Each day's route has its own color (`--day-1..7`; days 1–4 are #D9443B, #2563EB, #059669, #B45309). Pins show the order in the day.
 - Fonts: Inter (Latin) + Noto Sans JP (Japanese), both from Google Fonts.
 - Badges: "Estimate" on costs and estimated legs. "Please check" on times, hours, ferries, flights.
+- Cost bars and category dots use neutral shades; the day palette is reserved for routes and stops.
 
 ---
 

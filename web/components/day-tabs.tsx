@@ -25,13 +25,13 @@ export function DayTabs({
   const wrapper =
     variant === 'floating'
       ? 'frost hidden gap-1.5 rounded-[18px] px-2.5 py-1.5 desk:flex'
-      : 'flex flex-none gap-1.5 overflow-x-auto px-4 pb-2.5 desk:hidden';
+      : 'flex flex-none gap-1.5 overflow-x-auto border-b border-line-soft bg-surface/90 backdrop-blur-xl px-4 py-3 desk:hidden';
 
   const tab =
-    'flex min-h-9 flex-none items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px]';
+    'flex min-h-11 flex-none items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink';
   const off =
     variant === 'inline'
-      ? 'border border-white/25 bg-white/10 text-white'
+      ? 'border border-line bg-surface text-muted-strong'
       : 'border-line text-muted-strong bg-surface border';
   const on = 'text-on-accent border border-transparent font-semibold';
 
@@ -42,7 +42,7 @@ export function DayTabs({
         role="tab"
         aria-selected={activeDay == null}
         className={`${tab} ${activeDay == null ? on : off}`}
-        style={activeDay == null ? { background: 'var(--color-ink)' } : undefined}
+        style={activeDay == null ? { background: 'var(--color-control)' } : undefined}
         onClick={() => onDayChange(null)}
       >
         {t('plan.allDays')}
