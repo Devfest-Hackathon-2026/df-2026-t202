@@ -233,12 +233,16 @@ async def _leg(a: Stop, b: Stop, run: Run) -> None:
 
 
 async def _ride_instead(a: Stop, b: Stop, leg: Leg, run: Run) -> None:
-    """Too far to walk: ride in the trip's mode. With no transit data (Japan), time the ride by car and mark it."""
+    """Too far to walk: ride in the trip's mode. With no transit data (Japan), use the Planner's train time when it
+    planned a train (D82), else time the ride by car; either way mark it as an estimate."""
     mode = "DRIVE" if run.default_mode == "WALK" else run.default_mode
     line = leg.line if leg.mode == mode == "TRANSIT" else None
     real = await _route(a, b, mode, run)
     if real:
         a.leg = Leg(mode=mode, minutes=real["minutes"], polyline=real["polyline"], line=real.get("line") or line)
+        return
+    if leg.mode == mode == "TRANSIT":
+        a.leg = Leg(mode=mode, minutes=leg.minutes, estimate=True, line=line)  # the Planner's train guess (D38)
         return
     by_car = await _route(a, b, "DRIVE", run) if mode != "DRIVE" else None
     minutes = by_car["minutes"] + 10 if by_car else 30  # a train or bus is about a car ride plus waiting

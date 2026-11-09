@@ -1,12 +1,16 @@
 """YouTube Shorts per stop (Person B). BACKEND_PERSON_B.md T5, PLAN.md 9.4.
 
-search.list: type=video, videoDuration=short, maxResults=5, q="<name> shorts", no relevanceLanguage (videos in any
-language are fine). Two names, two audiences: the trip-language name first (an English trip wants English Shorts), then
-the other name when that found fewer than 3; the local name searches with regionCode=destination. Both sets are kept.
+search.list: type=video, videoDuration=short, maxResults=10, q="<name> 観光 shorts" (Japanese name) or
+"<name> travel shorts", no relevanceLanguage (videos in any language are fine). Two names, two audiences: the
+trip-language name first (an English trip wants English Shorts), then the other name when that found fewer than 3; the
+local name searches with regionCode=destination. Both sets are kept.
 Only videos whose title names the spot are kept (a search for
 a ramen shop can return an unrelated clip). At most 4 searches run at once (pipeline). Once the daily quota is used up
 (quotaExceeded), we stop searching until it resets; a short burst limit (rateLimitExceeded) only skips that stop.
-videos.list then drops "Made for Kids" videos (YouTube policy III.E.4.j; person_b_WHY.md decision 27).
+One videos.list call (1 unit) then drops "Made for Kids" videos (YouTube policy III.E.4.j; person_b_WHY.md decision 27)
+and ranks the rest: travel videos first (a travel word or hashtag in the title, description or tags, e.g.
+#japantravel, #旅行, 観光), then the trip-language search, then the most views (D81). Videos without a travel sign are
+kept, ranked last.
 
 Videos are optional: on any failure (quota used up, no key) we return [] and the front end shows its fallback.
 Cache: cache_videos/{placeId} for 7 days, "no videos" for 1 day (YouTube allows API data for at most 30 days;
@@ -30,7 +34,12 @@ SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 CACHE_FOR = timedelta(days=7)
 CACHE_EMPTY_FOR = timedelta(days=1)  # "no videos" may change soon (new uploads, a better name next run)
+CACHE_VERSION = 2  # bump to re-search every place when the way we pick videos changes (2: travel ranking, D81)
 MAX_VIDEOS = 3
+SEARCH_RESULTS = 10  # a search costs 100 quota units whatever maxResults is, so take more to rank
+# A travel sign in a video's title, description or tags; matched in lower case, so "#OsakaTravel" counts.
+# "旅" covers 旅行, 旅vlog, 一人旅. "touris" covers tourist and tourism. Food words count: restaurants are stops too.
+TRAVEL_WORDS = ("travel", "trip", "vlog", "sightseeing", "touris", "things to do", "旅", "観光", "グルメ", "food")
 QUOTA_REASONS = {"quotaExceeded", "dailyLimitExceeded"}  # the daily quota; rateLimitExceeded is a short burst limit
 QUOTA_RESETS_IN = ZoneInfo("America/Los_Angeles")  # YouTube's daily quota resets at midnight Pacific time
 
@@ -54,13 +63,15 @@ async def cached(place_id: str) -> list[str] | None:
         return None
     if not doc or not doc.get("fetchedAt"):
         return None
+    if doc.get("v") != CACHE_VERSION:
+        return None  # picked the old way: search again
     ids = doc.get("videoIds", [])
     return ids if firestore.now() - doc["fetchedAt"] < (CACHE_FOR if ids else CACHE_EMPTY_FOR) else None
 
 
 async def _save(place_id: str, query: str, ids: list[str]) -> None:
     try:
-        await firestore.cache_set("videos", place_id, {"query": query, "videoIds": ids})
+        await firestore.cache_set("videos", place_id, {"query": query, "videoIds": ids, "v": CACHE_VERSION})
     except Exception as e:
         log.warning(json.dumps({"event": "videos_cache_error", "op": "set", "error": type(e).__name__}))
 
@@ -97,7 +108,7 @@ async def _search(query: str, region: str | None, key: str) -> list[dict]:
         "part": "snippet",
         "type": "video",
         "videoDuration": "short",
-        "maxResults": 5,
+        "maxResults": SEARCH_RESULTS,
         "q": query,
         "fields": "items(id/videoId,snippet/title)",
         "key": key,
@@ -108,18 +119,49 @@ async def _search(query: str, region: str | None, key: str) -> list[dict]:
     return [i for i in resp.json().get("items", []) if i.get("id", {}).get("videoId")]
 
 
-async def _made_for_kids(ids: list[str], key: str) -> set[str]:
-    params = {"part": "status", "id": ",".join(ids), "fields": "items(id,status/madeForKids)", "key": key}
+async def _details(ids: list[str], key: str) -> dict[str, dict]:
+    """Title, description, tags, views and the Made for Kids flag per video, in one call (1 quota unit for any parts).
+    A video missing from the answer was removed or made private since the search."""
+    params = {
+        "part": "snippet,statistics,status",
+        "id": ",".join(ids),
+        "fields": "items(id,snippet(title,description,tags),statistics/viewCount,status/madeForKids)",
+        "key": key,
+    }
     resp = await _get(VIDEOS_URL, params)
-    return {i["id"] for i in resp.json().get("items", []) if i.get("status", {}).get("madeForKids")}
+    return {i["id"]: i for i in resp.json().get("items", []) if i.get("id")}
+
+
+def is_travel(video: dict) -> bool:
+    """Does the video say it is about travel (a travel word or hashtag in its title, description or tags)?"""
+    snippet = video.get("snippet", {})
+    text = " ".join([snippet.get("title", ""), snippet.get("description", ""), *snippet.get("tags", [])]).casefold()
+    return any(word in text for word in TRAVEL_WORDS)
+
+
+def views(video: dict) -> int:
+    try:
+        return int(video.get("statistics", {}).get("viewCount", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def rank(ids: list[str], details: dict[str, dict], first_search: set[str]) -> list[str]:
+    """Drop Made for Kids and vanished videos; travel videos first, then the trip-language search, then most views."""
+    kept = [i for i in ids if i in details and not details[i].get("status", {}).get("madeForKids")]
+    return sorted(kept, key=lambda i: (not is_travel(details[i]), i not in first_search, -views(details[i])))
+
+
+def _query(name: str, japanese: bool) -> str:
+    return f"{name} {'観光' if japanese else 'travel'} shorts"
 
 
 def _queries(name_local: str, name: str, region: str, lang: str) -> list[tuple[str, str | None]]:
     """(query, regionCode) pairs in search order: the trip-language name first, then the other one."""
-    local = (f"{name_local} shorts", region or None)
+    local = (_query(name_local, region == "JP"), region or None)
     if not name or name.strip().casefold() == name_local.strip().casefold():
         return [local]
-    translated = (f"{name} shorts", None)  # no region: English Shorts of a Japanese spot come from everywhere
+    translated = (_query(name, lang == "ja"), None)  # no region: English Shorts of a Japanese spot come from everywhere
     return [local, translated] if lang == "ja" else [translated, local]
 
 
@@ -140,16 +182,18 @@ async def shorts_for(place_id: str, name_local: str, region: str, name: str = ""
         return []
 
     ids: list[str] = []
+    first_search: set[str] = set()
     queries = _queries(name_local, name, region, lang)
     query = queries[0][0]
     try:
-        for q, region_code in queries:
+        for n, (q, region_code) in enumerate(queries):
             if len(ids) >= MAX_VIDEOS:
                 break  # the first search found enough: save the quota
             ids += [i for i in relevant(await _search(q, region_code, key), name_local, name) if i not in ids]
+            if n == 0:
+                first_search = set(ids)
         if ids:
-            kids = await _made_for_kids(ids, key)
-            ids = [i for i in ids if i not in kids]
+            ids = rank(ids, await _details(ids, key), first_search)
     except httpx.HTTPError as e:  # quota used up, network: no videos this time, and don't cache the failure
         status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
         if isinstance(e, httpx.HTTPStatusError) and _quota_used_up(e.response):

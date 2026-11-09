@@ -282,6 +282,35 @@ Each decision is added here at the time it is made.
   stops are pre-cached, so they need no quota. Lesson: tests with an empty cache spend real quota, so keep them few.
 - **Decided by:** Person B
 
+### 33. Shorts: search for travel videos, rank travel first, then views
+- **Date / task:** 2026-11-09, testing the deployed app. Found: many Shorts named the spot but were not about visiting
+  it (not useful for planning a trip).
+- **My idea:** (a) sort by views, popular travel Shorts first; (b) prefer travel hashtags (`#japantravel`, `#旅行`,
+  `#osakatravel`, `#osakacastle`), i.e. look for `#<place>travel` first.
+- **Options considered:** **One search with a travel word (`大阪城 観光 shorts` / `Osaka Castle travel shorts`), 10
+  results, then rank by travel signs in title, description and tags, then views** ✅ · Exact hashtag search first, then
+  a plain search (often empty for small spots, up to 2× quota) · Views only (`order=viewCount` brings viral clips that
+  only share a word with the spot). Second choice: keep videos without a travel sign but rank them last ✅ · drop them
+  (more stops with no Short).
+- **Why:** Same quota per plan: a search costs 100 units for 5 or 10 results, and the `videos.list` call we already make
+  for "Made for Kids" (1 unit) also returns tags, description and views. Views only break ties, because a popular
+  non-travel clip is still non-travel. The hashtag idea becomes a ranking signal instead of a search that can be empty.
+  Old cache entries are re-searched (cache version `v: 2`), so the demo must be pre-cached again.
+- **Decided by:** Person B (team log: D81)
+
+### 34. A "train" route that only walks is no route; legs always name the mode
+- **Date / task:** 2026-11-09, testing the deployed app. Found: Day 2 Osaka, Osaka Castle → Kuromon Market showed
+  "Osaka Metro Chuo Line · 59 min". Unclear if 59 min is walking or riding, and nobody walks 59 min.
+- **Cause:** Routes has no transit data for Japan and answered the TRANSIT request with a walk-only route (59 min).
+  With no line on it, we fell back to the Planner's line name, so a walk looked like a metro ride, and the
+  "walk over 30 min becomes a ride" rule (D78) never ran.
+- **Options considered (ride time when there is no real train route):** **The Planner's train time, marked
+  "about"** ✅ · Car time + 10 min (a road time, not a train time). **Label:** **Mode first, then line, then time** ✅
+  · Mode icon + line · Icon + mode + line.
+- **Why:** The Planner named the line, so its time for that line fits; it is marked as an estimate either way. The
+  mode word makes walking vs riding obvious in both the timeline and the shared text.
+- **Decided by:** Person B (team log: D82)
+
 ---
 
 Team log: decisions 3–6, 9–10 and 11–15, 16–20, 21–24, 25–28, 29–32 are also in `docs/decisions.md` as D35–D40, D41–D43, D44–D46, D47–D50, D51–D53 and D54–D57. Decisions 7 and 8 are covered there by

@@ -40,10 +40,12 @@ function formatMinutes(minutes: number, t: (key: string) => string): string {
     : t('time.hoursMinutes').replace('{h}', String(h)).replace('{m}', String(m));
 }
 
-/** "Kamome Shinkansen · about 1 h 30 min": what to ride (when known), then the time; "about" when estimated. */
+/** "Public transport · Kamome Shinkansen · about 1 h 30 min": how you travel (always, so a line name never hides
+ *  whether you walk or ride, D82), what to ride when known, then the time; "about" when estimated. */
 export function legText(leg: Leg, t: (key: string) => string): string {
   const time = formatMinutes(leg.minutes, t);
-  return `${leg.line || t(`leg.${leg.mode}`)} · ${leg.estimate ? t('time.about').replace('{t}', time) : time}`;
+  const parts = [t(`leg.${leg.mode}`), leg.line, leg.estimate ? t('time.about').replace('{t}', time) : time];
+  return parts.filter(Boolean).join(' · ');
 }
 
 const PROGRESS_STEPS: Progress[] = ['spots', 'routes', 'videos'];
