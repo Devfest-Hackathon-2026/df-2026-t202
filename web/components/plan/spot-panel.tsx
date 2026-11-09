@@ -41,7 +41,7 @@ export function SpotPanel({
 
   return (
     <section
-      className="absolute top-[68px] right-3 z-50 flex h-[min(620px,calc(100svh-5.5rem))] w-[min(320px,calc(100vw-1.5rem))] flex-col gap-2 rounded-2xl border border-white/15 bg-stone-900/50 bg-clip-padding p-3 shadow-[0_24px_60px_rgba(4,12,26,0.45)] backdrop-blur-2xl desk:top-[76px] desk:right-5 desk:w-[320px]"
+      className="absolute inset-x-3 top-[68px] bottom-[calc(var(--height-sheet-peek)+0.75rem)] z-50 flex flex-col gap-2 rounded-2xl border border-white/15 bg-stone-900/50 bg-clip-padding p-3 shadow-[0_24px_60px_rgba(4,12,26,0.45)] backdrop-blur-2xl desk:inset-x-auto desk:top-[76px] desk:bottom-auto desk:right-5 desk:h-[min(620px,calc(100svh-5.5rem))] desk:w-[320px]"
       aria-label={stop.name}
     >
       <header className="flex items-start gap-2 text-white">

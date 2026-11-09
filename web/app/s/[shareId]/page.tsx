@@ -66,6 +66,7 @@ function SharedTrip({ tripId }: { tripId: string }) {
   function openStop(day: number, index: number) {
     setSelected({ day, index });
     setActiveDay(day);
+    setStop('peek'); // on a phone the sheet would otherwise sit under the panel
   }
 
   const title = plan?.title || trip?.slots.dest?.label || t('share.title');

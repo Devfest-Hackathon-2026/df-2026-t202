@@ -581,7 +581,9 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
   const t = useT();
   const lang = useLanguage();
   const chips = card.options.map(Number).filter(Number.isFinite);
-  const currency = slots.budget?.currency ?? 'JPY';
+  // The server falls back to USD when the destination's country is unknown
+  // (flow.currency_for), and its chip amounts are in that currency. Match it.
+  const currency = slots.budget?.currency ?? 'USD';
   const [basis, setBasis] = useState<'person' | 'total'>(slots.budget?.basis ?? 'person');
   const [amount, setAmount] = useState(slots.budget?.amount ?? chips[1] ?? 0);
   const max = (chips[chips.length - 1] ?? 1000) * 2;

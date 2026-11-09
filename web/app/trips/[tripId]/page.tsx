@@ -50,6 +50,7 @@ export default function TripPage({ params }: { params: Promise<{ tripId: string 
   function openStop(day: number, index: number) {
     setSelected({ day, index });
     setActiveDay(day);
+    setStop('peek'); // on a phone the sheet would otherwise sit under the panel
   }
 
   if (authLoading || tripLoading || messagesLoading) {
