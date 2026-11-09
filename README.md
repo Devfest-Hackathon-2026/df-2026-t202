@@ -19,7 +19,7 @@
 
 | 種別 | URL |
 | --- | --- |
-| デプロイ URL | **https://tripi.web.app** （Google アカウントでログイン。共有リンクはログイン不要で閲覧可。旧 URL https://kyucat-trip.web.app も引き続き利用可） |
+| デプロイ URL | **https://tripi.web.app** （Google アカウントでログイン。共有リンクはログイン不要で閲覧可） |
 | 設計判断の記録 | [`docs/decisions.md`](docs/decisions.md)（85 件の判断：比較した選択肢・採用理由・決めた人） |
 | AI 活用ログ | [`AI_USAGE_LOG.md`](AI_USAGE_LOG.md) |
 
