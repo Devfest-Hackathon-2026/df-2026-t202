@@ -34,22 +34,50 @@ const FEATURES = [
   { key: 'share', Icon: Link2 },
 ] as const;
 
-/** The signed-out start screen: what the app is, then sign in (PLAN.md 10.1 S7). */
+/** The signed-out start screen: the name, what Tripi does in three steps, then sign in (PLAN.md 10.1 S7). */
 export function SignInCard() {
   const t = useT();
 
   return (
-    <div className="mx-auto flex w-full max-w-[400px] flex-col gap-6 rounded-2xl border border-white/15 bg-stone-900/50 bg-clip-padding p-7 shadow-[0_24px_60px_rgba(4,12,26,0.45)] backdrop-blur-2xl">
-      <ul className="m-0 flex list-none flex-col gap-3 p-0">
-        {FEATURES.map(({ key, Icon }) => (
-          <li key={key} className="flex items-center gap-3 text-[14px] text-white">
-            <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-white/18 text-white">
-              <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
+    <div className="mx-auto flex w-full max-w-[440px] flex-col gap-6 rounded-3xl border border-white/15 bg-stone-900/50 bg-clip-padding p-7 shadow-[0_24px_60px_rgba(4,12,26,0.45)] backdrop-blur-2xl sm:p-8">
+      <header className="flex flex-col gap-3 text-white">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[30px] leading-none font-bold tracking-[-0.02em]">
+            {t('app.name')}
+          </span>
+          <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85">
+            {t('home.hero.tagline')}
+          </span>
+        </div>
+        <h1 className="m-0 text-[22px] leading-snug font-semibold whitespace-pre-line [word-break:auto-phrase]">
+          {t('home.hero.title')}
+        </h1>
+        <p className="m-0 text-[14px] leading-relaxed text-white/75 [word-break:auto-phrase]">
+          {t('home.hero.subtitle')}
+        </p>
+      </header>
+
+      <ol className="m-0 flex list-none flex-col gap-3.5 p-0">
+        {FEATURES.map(({ key, Icon }, i) => (
+          <li key={key} className="flex items-start gap-3 text-white">
+            <span className="relative flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white/15">
+              <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
+              <span
+                className="bg-accent absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                aria-hidden="true"
+              >
+                {i + 1}
+              </span>
             </span>
-            {t(`home.feature.${key}`)}
+            <span className="flex flex-col gap-0.5 pt-0.5">
+              <span className="text-[14.5px] font-semibold">{t(`home.feature.${key}.title`)}</span>
+              <span className="text-[13px] leading-snug text-white/70 [word-break:auto-phrase]">
+                {t(`home.feature.${key}.desc`)}
+              </span>
+            </span>
           </li>
         ))}
-      </ul>
+      </ol>
 
       <button
         type="button"
@@ -59,6 +87,7 @@ export function SignInCard() {
         <GoogleMark />
         {t('auth.signInGoogle')}
       </button>
+      <p className="-mt-3 text-center text-[12px] text-white/60">{t('home.footnote')}</p>
 
       {/* Development only: lets the flow be exercised on localhost without a Google account.
           It is never rendered on a deployed host. */}

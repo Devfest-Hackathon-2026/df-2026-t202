@@ -27,12 +27,27 @@
       }
     },
     "feature": {
-      "plan": "Answer question cards in a chat",
-      "real": "Real places and real travel times",
-      "share": "Share it with friends by link"
+      "plan": {
+        "title": "Chat about your trip",
+        "desc": "Destination, dates, budget: tap a card or just type."
+      },
+      "real": {
+        "title": "Get a plan that works",
+        "desc": "Every place checked on Google Maps, with real travel times."
+      },
+      "share": {
+        "title": "Share it with friends",
+        "desc": "Send one link. They can view it without signing in."
+      }
     },
     "fromMap": "Pick on the map",
-    "start": "New trip"
+    "start": "New trip",
+    "hero": {
+      "tagline": "AI trip planner",
+      "title": "Plan a trip you can actually do.",
+      "subtitle": "Tell Tripi where you want to go. It builds a day-by-day plan with real places, real travel times and a short video for every stop."
+    },
+    "footnote": "Free · English and Japanese · Anywhere in the world"
   },
   "trip": {
     "untitled": "New trip",
