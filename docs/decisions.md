@@ -2,7 +2,7 @@
 
 The hackathon theme asks us not to accept AI suggestions blindly, to compare pros and cons, and to explain **in our own
 words why we chose each option**. Every decision below lists the options we compared, why we chose one, and who decided.
-"Proposed by Claude" means an AI coding assistant laid out the options; a human made the decision.
+"Proposed by Claude" means an AI coding assistant laid out the options and a human made the decision. A few small implementation details (a tool version, a health-check path) were chosen by Claude and reviewed by a human; they say so. Entries marked **Later** were changed by a later decision; we keep them to show how our thinking moved.
 Product-level decisions are summarized in PLAN.md section 16.
 
 Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
@@ -28,18 +28,20 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Rejected:** Keeping it in a `legacy/` folder. The repo is public and judged, so dead code would confuse reviewers.
 - **Why:** The product changed (chat planner instead of reel import). A clean base is faster than adapting.
 - **Decided by:** Nazmul (proposed by Claude) · 2026-11-08
+- **Later:** Superseded by D70 (Angular was replaced by Next.js on 2026-11-09).
 
 ### D4. Angular 21, not Angular 22
 - **Chosen:** Angular 21.2.
 - **Rejected:** Angular 22 (newest). AngularFire 21 only supports Angular ^21.2 and TypeScript < 6. Angular 22 also needs Node ≥ 22.22.
 - **Why:** PLAN.md requires AngularFire; Angular 21 also runs on more teammates' Node versions (≥ 22.12).
 - **Decided by:** Claude, following PLAN.md's stack; flagged to the team in PR #1 · 2026-11-08
+- **Later:** Superseded by D70 (the front end moved to Next.js).
 
 ### D5. npm 11 for installs
 - **Chosen:** `npx npm@11 install` (documented in AGENTS.md).
 - **Rejected:** npm 10, which crashes on this dependency tree ("Cannot read properties of null (reading 'edgesOut')"). Also rejected: `--legacy-peer-deps`, which hides real peer conflicts.
 - **Why:** It's a bug in npm 10's dependency resolver; npm 11 installs cleanly.
-- **Decided by:** Claude (tooling fix) · 2026-11-08
+- **Decided by:** Claude (tooling fix; Nazmul reviewed) · 2026-11-08
 
 ### D6. Firestore cache collections are top-level (`cache_places`, `cache_videos`)
 - **Chosen:** Top-level collections.
@@ -47,7 +49,7 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Why:** Correctness.
 - **Decided by:** team · 2026-11-08
 
-## Back end: shared contract and team workflow
+## Back end: shared contract and team workflow (Nazmul = Person A: chat and platform; Raghav = Person B: plan engine)
 
 ### D7. Copy the shared `models.py` contract word for word
 - **Chosen:** The exact text in section 3.3 of the backend spec, excluded from the formatter so it never changes by accident.
@@ -116,6 +118,7 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Rejected:** Always JPY. The app is worldwide.
 - **Why:** The budget card shows sensible amounts for each country.
 - **Decided by:** team (backend spec) + Claude (chip amounts, keep-user-amount rule) · 2026-11-08
+- **Later:** Changed on 2026-11-09: the currency from the user's settings (`slots.currency`) now fixes the budget currency for the whole trip; the destination only sets it when no setting exists.
 
 ## Back end: AI quality, speed and cost
 
@@ -129,7 +132,7 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Chosen:** `thinking_level="MINIMAL"` for free-text extraction.
 - **Rejected:** The model's default thinking.
 - **Why (measured):** Concierge reply time dropped from **2.8–4.4 s to 1.1–1.8 s** with the same extraction results on our test sentences. PLAN.md targets a first reply under 2 s. Person B can still use deeper thinking for the Planner (`generate_json(..., thinking=None)`).
-- **Decided by:** Claude (measured), reported to Nazmul · 2026-11-08
+- **Decided by:** Nazmul, from Claude's measurements · 2026-11-08
 
 ### D20. User text is data, never instructions
 - **Chosen:** The prompt marks user text as data, and output is a fixed Pydantic schema. Unclear values are ignored, not guessed.
@@ -189,13 +192,13 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Chosen:** With `ENV=production`, startup fails if `FIRESTORE_EMULATOR_HOST` or `FIREBASE_AUTH_EMULATOR_HOST` is set (as for `SKIP_APPCHECK`).
 - **Rejected:** Trusting the deploy config.
 - **Why:** The Admin SDK accepts unsigned emulator tokens when the auth emulator host is set, which would bypass login.
-- **Decided by:** Claude · 2026-11-08
+- **Decided by:** Claude (implementation detail; Nazmul reviewed) · 2026-11-08
 
 ### D29. `tzdata` pip package in the API image
 - **Chosen:** Pin `tzdata` in `requirements.txt`.
 - **Rejected:** Installing the OS tz database in the Dockerfile.
 - **Why:** `zoneinfo("Asia/Tokyo")` (daily limits, "today" for the Concierge) must work on slim images; one pinned line.
-- **Decided by:** Claude · 2026-11-08
+- **Decided by:** Claude (implementation detail; Nazmul reviewed) · 2026-11-08
 
 ### D30. Secret Manager access granted per secret
 - **Chosen:** Bind `roles/secretmanager.secretAccessor` on each secret the API uses.
@@ -213,7 +216,7 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Chosen:** Serve the health check at `/health` and keep `/healthz` for local runs and tests.
 - **Rejected:** Only `/healthz`, as the spec said. On Cloud Run, Google's front end answers 404 for paths ending in `z`, so the request never reaches the container.
 - **Why:** We found this in the first smoke test after the deploy (GFE 404 on `/healthz`, while `POST /trips` reached the app).
-- **Decided by:** Claude · 2026-11-08
+- **Decided by:** Claude (implementation detail; Nazmul reviewed) · 2026-11-08
 
 ### D33. Dedicated Cloud Build service account for source deploys
 - **Chosen:** `trip-api-build@` with only `roles/run.builder`, passed with `--build-service-account`.
@@ -226,9 +229,9 @@ Format: **Chosen** · Rejected (why not) · Why · Decided by · Date
 - **Chosen:** `flow.search_place` turns `httpx.HTTPError`, `RuntimeError` (missing key) and bad shapes into `PlaceLookupError`. The chat then replies "couldn't look that up, please try again", keeps the other updates and shows the same card.
 - **Rejected:** Letting it raise (a 500 for the user). Returning `None` (tells the user the place doesn't exist, which is wrong).
 - **Why:** Person B's `places.search_text` raises on failure by design (it retries once inside).
-- **Decided by:** Claude (requested by Person B) · 2026-11-08
+- **Decided by:** Raghav (asked for it); Claude implemented · 2026-11-08
 
-## Back end: plan engine (Person B)
+## Back end: plan engine (Raghav)
 
 Full options, pros and cons for these are in the [appendix](#appendix-plan-engine-decisions-in-detail-p1p34) (P1–P34).
 
@@ -359,7 +362,7 @@ Full options, pros and cons for these are in the [appendix](#appendix-plan-engin
 - **Chosen:** Mount the `places-api-key` secret as `ROUTES_API_KEY` on Cloud Run.
 - **Rejected:** A separate Routes key (one more key and secret to manage, and no difference in price).
 - **Why:** PLAN.md 12 allows sharing. One key restricted to Places API (New) and Routes API.
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D59. App Check with a reCAPTCHA Enterprise score key
 - **Chosen:** A score-based web key for `localhost` and `hosted.app`, registered for the `trip-web` app (token TTL 1 h, min score 0.5). A debug token for local development and the end-to-end script.
@@ -371,57 +374,57 @@ Full options, pros and cons for these are in the [appendix](#appendix-plan-engin
 - **Chosen:** Set the `httpx` logger to WARNING in `main.py`.
 - **Rejected:** Leaving INFO logging on. The YouTube Data API takes the key as a `key=` query parameter, so httpx's INFO line printed the full key into Cloud Logging (found in the quality evaluation on 2026-11-09).
 - **Why:** Keys must never reach logs (AGENTS.md hard rule 4). A test checks the level.
-- **Decided by:** Claude · 2026-11-09
+- **Decided by:** Claude (implementation detail; Nazmul reviewed) · 2026-11-09
 
 ### D61. Free-text prefs and musts are added, never replaced
 - **Chosen:** Concierge prefs and musts are added to the current lists (deduped, at most 20). Removing an item is done with the card, which replaces the list.
 - **Rejected:** Replacing the list. The prompt tells Gemini to send only new values, so "also add shopping" wiped the earlier prefs. A `remove` field (changes `models.py`).
 - **Why:** A merge bug found in the live Concierge eval.
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D62. Partial free-text updates change only what the user said
 - **Chosen:** Budget and people updates from free text overlay the current values ("make it 80000" keeps the total basis; "+1 child" keeps the adults). A budget amount given before the destination gets the destination's currency once it's known.
 - **Rejected:** An "explicit currency" flag (changes `models.py`).
 - **Why:** The live eval showed a total budget silently becoming per person.
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D63. Concierge never invents dates
 - **Chosen:** Dates only when both days are stated or a named holiday defines them. Seasons, months and "a weekend" get one clarify question. Comments confirm and give one tip; they never ask for the next condition.
 - **Rejected:** Letting the model pick a range ("next spring" became a 92-day range).
 - **Why:** Live eval: 42/45 → 45/45 (49/49 with new cases).
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D64. A YouTube burst limit is temporary (changes D57)
 - **Chosen:** Only `quotaExceeded` and `dailyLimitExceeded` stop YouTube until the reset. `rateLimitExceeded` skips one stop.
 - **Rejected:** Treating all three the same (one short burst disabled videos for the rest of the day).
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D65. Only Shorts that name the spot; at most 10 new searches per plan (changes D51)
 - **Chosen:** Keep a video only if its title contains a distinctive part of the place name. Skip hotels, stations and rental offices. Search sights first. Cache empty results for 1 day instead of 7.
 - **Rejected:** Ranking only (an unrelated rakugo clip was shown for a ramen shop). An extra API call per video.
 - **Why:** Relevance and the ~100 searches a day quota. Generic words ("night", "view", "本店") never count, stacked Japanese endings are stripped ("稲佐山山頂展望台" → "稲佐山"), and 2-character pieces count only when nothing longer exists.
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D66. Transit with no route: walk if ≤ 2 km
 - **Chosen:** A real WALK route for short hops, else the Planner's minutes as an estimate, with the train line in the note.
 - **Rejected:** Always an estimate (11 of 19 legs said "Please check" in Kyoto). Inventing a speed.
 - **Why:** The Routes API has no transit data for Japan.
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D67. One closed stop triggers a repair; time limits fit Cloud Run (changes D44)
 - **Chosen:** Repair when a stop is closed on arrival, giving Google's hours to the fix call. Fix calls use LOW thinking. Draft timeout 90 s, fix timeout 45 s, no repair after 140 s. Cloud Run timeout 300 s. A cancelled request resets the trip to "error".
 - **Rejected:** The 3-warning threshold (closed stops shipped). 120 s per attempt (the worst case exceeded the request limit).
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D68. Hotels can't be meals or sights; padded names are ignored
 - **Chosen:** A Places `primaryType` check (no extra cost: the mask was already Enterprise) and a name-length and shared-word check.
 - **Rejected:** Prompt rules only (a ryokan was a lunch stop; Google returned an SEO-spam name).
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D69. Authentic itinerary rules and a cost guard (changes D45, D54)
 - **Chosen:** `stay` names a real hotel or ryokan or an area. Meals at 11:30–13:30 and 18:00–20:00 at real restaurants, never moved earlier. Opening hours, sunset and pace rules in the prompt. In code: reversed cost ranges are swapped, single prices are widened ±10%, and a budget check is added when the max goes over the budget.
 - **Rejected:** Area-only stays. Trusting the model for cost (the plan had min = max and went over budget silently).
-- **Decided by:** Claude (recommended, auto-approved by Nazmul) · 2026-11-09
+- **Decided by:** Proposed by Claude, approved by Nazmul · 2026-11-09
 
 ### D70. Next.js instead of Angular for the front end
 - **Chosen:** Rebuild `web/` as a Next.js 16 App Router app (React 19). **Rejected:** Vite + React (App Hosting needs a static server such as `superstatic` and a hand-written `start` script, so the deploy path would be unproven on submission day); staying on Angular (nobody on the team writes Angular daily, and the remaining time is ~35 hours to feature freeze).
