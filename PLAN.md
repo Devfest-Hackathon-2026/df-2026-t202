@@ -603,7 +603,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 | Google Maps / Places / Routes data and photos | Data | Google Maps Platform Terms (show attribution) |
 | YouTube videos | Content | YouTube API Services Terms (official player only) |
 | Inter | Font | SIL Open Font License |
-| Start-screen photo `web/public/dusk.webp` | Image | See `ATTRIBUTION.md` |
+| Start-screen photo `web/public/dusk.webp` | Image | Original, made by the team (MIT, see `ATTRIBUTION.md`) |
 
 Check each license at the source before submission.
 

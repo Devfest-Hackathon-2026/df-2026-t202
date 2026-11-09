@@ -38,5 +38,6 @@ source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check 
 | Google Maps / Places / Routes data and photos | Data | Google Maps Platform Terms of Service (show attribution) |
 | YouTube videos | Content | YouTube API Services Terms (official embedded player only) |
 | Gemini (Vertex AI) | Service | Google Cloud Terms of Service |
-| Start-screen image `web/public/dusk.webp` | Image | **TBD — ask the team where it came from.** Supplied by a team member as "Serene Island Sunset.png". Record the photographer or the generating tool, and the licence, before submission. |
+| Start-screen image `web/public/dusk.webp` | Image | Original image made by Team Kyu_cat for Tripi (not copied from a third party). Released with this repo under the MIT License. |
 | Google Cloud architecture icons | Image | Google (cloud.google.com/icons) |
+| README screenshots `docs/images/*.jpg` | Image | Our own app screenshots. Map imagery: Map data ©2026 Google (Google Maps Platform attribution) |
