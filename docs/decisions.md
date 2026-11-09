@@ -456,3 +456,8 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** Drop it (the overlay, `RegionPicker`, the "pick on the map" button and `NEXT_PUBLIC_MAPS_MAP_ID`). The destination card keeps free text plus the suggestion cards.
 - **Why:** It needed a vector Map ID that was never configured, so it was a dead end in the UI: the map opened but no region could be tapped. One screen fewer to explain in a 3-minute demo, and one less console step before submission.
 - **Decided by:** Soma · 2026-11-09
+
+### D76. YouTube Shorts autoplay when the spot panel opens
+- **Chosen:** Keep `autoplay=1` in the spot panel's player; it only starts after the user's own tap that opens the panel. **Rejected:** `autoplay=0` (the D52 note), which needs one more tap.
+- **Why:** Smoother demo; playback still follows a user action. Accepted risk against YouTube's policy wording (III.E.4.i).
+- **Decided by:** Raghav (front-end check, proposed by Claude) · 2026-11-09
