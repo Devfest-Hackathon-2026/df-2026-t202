@@ -1,7 +1,7 @@
-"""Planner agent (Person B). BACKEND_PERSON_B.md T3, PLAN.md 9.2 / 9.3 step 2.
+"""Planner agent. PLAN.md 9.2 / 9.3 step 2.
 
 slots + full chat -> draft Plan with Gemini (GEMINI_MODEL_PLANNER) and prompts/planner.md. No grounding tools and the
-model's default thinking level for the draft: plan quality over speed (person_b_WHY.md, decisions 16-18). Repair
+model's default thinking level for the draft: plan quality over speed (docs/decisions.md P16–P18). Repair
 rounds only edit a few stops: LOW thinking, a shorter timeout, and the model returns only the days it changed
 (`PlanFix`, D83), because writing out the whole plan again was most of a repair's ~30 s.
 Outputs are validated by llm.generate_json (one retry on invalid JSON, then llm.LLMError).

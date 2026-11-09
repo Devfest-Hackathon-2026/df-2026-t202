@@ -1,4 +1,4 @@
-# AI Trip Planner — Revised Build Plan (Team Kyu_cat)
+# Tripi — Build Plan (Team Kyu_cat)
 
 GDGoC Japan DevFest Hackathon 2026 · Theme: "Own the Why, Build with Intent" · Category: **Tourism**
 
@@ -23,7 +23,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 
 ## 1. Product summary
 
-**Working name:** "AI Trip Planner" (final name: TBD — do not use "Kyushu" in the name, because the app works worldwide).
+**Name:** **Tripi**. (No "Kyushu" in the name: the app works worldwide.)
 
 **One line:** The user answers a few questions from an AI in a chat. The app builds a day-by-day trip plan with a map route and YouTube Shorts for each spot. The user shares the plan with friends by link.
 
@@ -299,7 +299,7 @@ Rules:
 | 1 | `dest` | Where do you want to go? | `dest`: place search box + popular chips | Save `slots.dest` |
 | 2 | `dates` | When do you want to go? | `dates`: date range picker + "not decided" → nights chips | Save `dates` or `nights` |
 | 3 | `people` | How many people? | `people`: adult/child/infant +/– | Save `people` |
-| 4 | `budget` | What is your budget? | `budget`: per person/total switch + amount chips + slider. Currency from destination country. | Save `budget` |
+| 4 | `budget` | What is your budget? | `budget`: per person/total switch + amount chips + slider. Currency from the user's settings (`slots.currency`). | Save `budget` |
 | 5 | `transport` | How will you get around? | `transport`: multi-select chips, then a second screen "Where does your trip start?" (text box + "Not decided yet") | Save `transport` and `origin`. `origin` is kept only for a specific place (airport, station, hotel, address: Places `primaryType` not an area); a city/state/region or "not decided" saves `null`, and the Planner starts Day 1 at the first attraction |
 | 6 | `prefs` | What kind of trip do you want? | `prefs`: multi-select chips + free text | Save `prefs` |
 | 7 | `musts` | Any places you must visit? | `musts`: free text + "none" | Save `musts` |
@@ -450,7 +450,7 @@ right, and the place card and the Shorts viewer sit beside the column instead of
 - The trip document in Firestore is the source of truth. A Firestore listener feeds React state for rendering.
 - The current card comes from the last AI message's `ui` field.
 - Temporary card state (for example, a half-selected date range) stays in the component only.
-- During planning, show progress text from `trips.progress`: "Finding spots → Calculating travel times → Finding videos".
+- During planning, show progress text from `trips.progress`: "Planning your days → Calculating travel times → Finding videos", with "Usually 30–60 seconds" (D83).
 
 ### 10.3 Language
 
@@ -528,39 +528,39 @@ Next.js inlines `NEXT_PUBLIC_*` at build time, so every name below carries that 
 Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES** = design and pitch. One person can hold two roles.
 
 ### Sun Nov 8 — afternoon: M0 Setup (everyone, by 17:00)
-- [ ] INF: GCP project, billing, budget alert, enable APIs (Vertex AI, Maps JS, Places New, Routes, YouTube Data v3, Secret Manager, Cloud Run, Firestore).
-- [ ] INF: Firebase project, Auth (Google + anonymous), Firestore, App Check.
-- [ ] INF: Create API keys, restrict them, store server keys in Secret Manager.
+- [x] INF: GCP project, billing, budget alert, enable APIs (Vertex AI, Maps JS, Places New, Routes, YouTube Data v3, Secret Manager, Cloud Run, Firestore).
+- [x] INF: Firebase project, Auth (Google + anonymous), Firestore, App Check.
+- [x] INF: Create API keys, restrict them, store server keys in Secret Manager.
 - [x] FE: front-end skeleton, deploy "hello" to App Hosting. (Angular on Nov 8; rebuilt on Next.js on Nov 9, D70.)
-- [ ] BE: FastAPI skeleton with `/healthz`, deploy to Cloud Run (`gcloud run deploy --source`).
-- [ ] DES: Name the app. Simple mockups of S1 and S3.
+- [x] BE: FastAPI skeleton with `/healthz`, deploy to Cloud Run (`gcloud run deploy --source`).
+- [x] DES: Name the app (**Tripi**). Simple mockups of S1 and S3.
 - **Check:** both URLs work on a phone.
 
 ### Sun Nov 8 — evening: M1 Chat (by 24:00)
-- [ ] BE: `models.py`, `flow.py`, `POST /trips`, `POST /trips/{id}/messages` (card answers only).
-- [ ] BE: Concierge agent for free text.
-- [ ] FE: Login, S7 list, S1 chat with all 7 cards, S2 panel.
-- [ ] INF: `firestore.rules`, emulator tests for member-only reads.
-- [ ] FE: Language switch + `en.json` / `ja.json`.
+- [x] BE: `models.py`, `flow.py`, `POST /trips`, `POST /trips/{id}/messages` (card answers only).
+- [x] BE: Concierge agent for free text.
+- [x] FE: Login, S7 list, S1 chat with all 7 cards, S2 panel.
+- [x] INF: `firestore.rules`, emulator tests for member-only reads.
+- [x] FE: Language switch + `en.json` / `ja.json`.
 - **Check:** a user finishes all steps in both languages. Slots are correct in Firestore.
 
 ### Mon Nov 9 — morning to afternoon: M2 Plan (by 16:00)
-- [ ] BE: `places.py`, `routes.py`, Planner agent, `pipeline.py`, `POST /trips/{id}/plan`.
-- [ ] BE: Warnings and one fix round.
-- [ ] FE: Progress display during planning.
-- **Check:** the Kyushu demo input gives a realistic 4-day plan (quality first; may take more than 30 seconds, D44).
+- [x] BE: `places.py`, `routes.py`, Planner agent, `pipeline.py`, `POST /trips/{id}/plan`.
+- [x] BE: Warnings and one fix round.
+- [x] FE: Progress display during planning.
+- **Check:** the Kyushu demo input gives a realistic 4-day plan (quality first; about 30–45 seconds, D44, D83).
 
 ### Mon Nov 9 — evening: M3 Trip page + Shorts (by 24:00)
-- [ ] FE: S3 map with colored routes and numbered pins, timeline, cost, checks, badges.
-- [ ] BE: `youtube.py` with cache. Pre-cache demo spots.
-- [ ] FE: S4 Shorts viewer.
+- [x] FE: S3 map with colored routes and numbered pins, timeline, cost, checks, badges.
+- [x] BE: `youtube.py` with cache. Pre-cache demo spots.
+- [x] FE: S4 Shorts viewer.
 - **Check:** full flow from "New trip" to swiping Shorts works on a phone.
 
 ### Tue Nov 10 — morning: M4 Share + polish (by 12:00)
-- [ ] BE + FE: `POST /trips/{id}/share`, S6 shared page with anonymous login.
-- [ ] FE: "Copy text for LINE", "Open in Google Maps".
-- [ ] DES: Visual polish.
-- [ ] **Stretch only if all checks pass:** F6 edit by chat.
+- [x] BE + FE: `POST /trips/{id}/share`, S6 shared page with anonymous login.
+- [x] FE: "Copy text for LINE", "Open in Google Maps".
+- [x] DES: Visual polish.
+- [ ] **Stretch only if all checks pass:** F6 edit by chat. (Not built: we chose plan quality and speed instead.)
 - **Check:** a second phone opens the share link without login.
 
 ### Tue Nov 10 — afternoon: M5 Freeze and submit (12:00 → 18:00)
@@ -586,7 +586,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 7. When you add a library, font or asset, add it to `ATTRIBUTION.md` with its license.
 8. Keep the MVP scope (section 3.1). Do not start stretch features unless asked.
 9. Prefer simple, readable code. This is a 5-day hackathon project.
-10. Add a short note to `docs/ai-usage.md` when AI generated a large part of a feature (what, where, why).
+10. Add a short note to `AI_USAGE_LOG.md` when AI generated a large part of a feature (what, where, why).
 
 ---
 
@@ -602,7 +602,8 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 | Noto Sans JP | Font | SIL Open Font License |
 | Google Maps / Places / Routes data and photos | Data | Google Maps Platform Terms (show attribution) |
 | YouTube videos | Content | YouTube API Services Terms (official player only) |
-| Background photo | Image | TBD — record source and license |
+| Inter | Font | SIL Open Font License |
+| Start-screen photo `web/public/dusk.webp` | Image | See `ATTRIBUTION.md` |
 
 Check each license at the source before submission.
 
@@ -648,7 +649,7 @@ Everything in the video must be real app output.
 
 ## 18. Submission checklist (due Nov 10, 19:00 — target 18:00)
 
-- [ ] GitHub repository (no secrets in history)
+- [x] GitHub repository (no secrets in history; `scripts/check-secrets.sh` before every commit)
 - [ ] Product description document (official template), including:
   - [ ] Problem and target users, with evidence (for example, a short survey of friends)
   - [ ] Rationale / Pros and Cons (section 16)
@@ -659,14 +660,14 @@ Everything in the video must be real app output.
 - [ ] Attribution and licensing sheet
 - [ ] Pitch slides (in-person venues only)
 - [ ] Drive folder set to "Anyone with the link can view"
-- [ ] Deployed URL works until Nov 14
+- [ ] Deployed URL works until Nov 14 (live: https://kyucat-trip.web.app)
 
 ---
 
 ## 19. Open questions
 
-- [ ] Final app name
-- [ ] Team members and roles (FE / BE / INF / DES)
+- [x] Final app name: **Tripi**
+- [x] Team members and roles: see `README.md`
 - [x] Front-end framework: **Next.js** (decided 2026-11-09, `docs/decisions.md` D70). Angular was the first choice until then.
 - [ ] Track: in-person venue or online?
 - [ ] Evidence for the problem (survey?)

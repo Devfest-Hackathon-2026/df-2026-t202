@@ -1,4 +1,4 @@
-"""YouTube Shorts per stop (Person B). BACKEND_PERSON_B.md T5, PLAN.md 9.4.
+"""YouTube Shorts per stop. PLAN.md 9.4.
 
 search.list: type=video, videoDuration=short, maxResults=10, q="<name> 観光 shorts" (Japanese name) or
 "<name> travel shorts", no relevanceLanguage (videos in any language are fine). Two names, two audiences: the
@@ -7,7 +7,7 @@ local name searches with regionCode=destination. Both sets are kept.
 Only videos whose title names the spot are kept (a search for
 a ramen shop can return an unrelated clip). At most 4 searches run at once (pipeline). Once the daily quota is used up
 (quotaExceeded), we stop searching until it resets; a short burst limit (rateLimitExceeded) only skips that stop.
-One videos.list call (1 unit) then drops "Made for Kids" videos (YouTube policy III.E.4.j; person_b_WHY.md decision 27)
+One videos.list call (1 unit) then drops "Made for Kids" videos (YouTube policy III.E.4.j; docs/decisions.md P27)
 and ranks the rest: travel videos first (a travel word or hashtag in the title, description or tags, e.g.
 #japantravel, #旅行, 観光), then the trip-language search, then the most views (D81). Videos without a travel sign are
 kept, ranked last.

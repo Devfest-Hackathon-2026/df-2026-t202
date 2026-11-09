@@ -1,4 +1,4 @@
-"""Plan pipeline (Person B). BACKEND_PERSON_B.md T4, PLAN.md 9.3. Progress goes to the trip doc (no SSE).
+"""Plan pipeline. PLAN.md 9.3. Progress goes to the trip doc (no SSE).
 
 1. claim the trip (status "planning")         2. planner.draft
 3. verify stops with Places                    4. progress "routes": real legs from Routes (found stops only)
@@ -55,7 +55,7 @@ AREA_TYPES = {"country", "administrative_area_level_1", "administrative_area_lev
 PLACE_TYPES = {"point_of_interest", "establishment", "tourist_attraction"}  # a real place, even inside a town
 TRANSPORT_MODE = {"car": "DRIVE", "train": "TRANSIT", "shinkansen": "TRANSIT", "bus": "TRANSIT"}
 
-# Server-written text in the trip language (person_b_WHY.md: plan text follows trips.language).
+# Server-written text in the trip language (docs/decisions.md: plan text follows trips.language).
 TEXT = {
     "en": {
         "drive": "About {h} h {m} min of driving today. Consider fewer stops.",

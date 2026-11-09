@@ -1,11 +1,11 @@
-"""Pre-cache the Kyushu demo (Person B). BACKEND_PERSON_B.md T5, PLAN.md 2.5 ("no fake demo").
+"""Pre-cache the Kyushu demo. PLAN.md 2.5 ("no fake demo").
 
 Runs the real Planner and Places steps on tests/fixtures/demo_slots.json a few times (Gemini varies between runs),
 then fills cache_videos in Firestore with real YouTube results for every stop. No trip or plan is saved.
 Pre-caching real API results is allowed; it saves the YouTube quota (about 100 searches a day) for the recording.
 
 Run from api/ with gcloud ADC and api/.env set (costs Gemini calls and up to ~15 YouTube searches per run):
-    .venv/bin/python scripts/precache_demo.py            # 2 runs (person_b_WHY.md decision 28)
+    .venv/bin/python scripts/precache_demo.py            # 2 runs (docs/decisions.md P28)
     .venv/bin/python scripts/precache_demo.py --runs 3
 """
 

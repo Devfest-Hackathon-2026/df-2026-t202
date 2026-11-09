@@ -1,4 +1,4 @@
-"""Contract tests: the shared models (BACKEND_PERSON_A.md 3.3) accept the demo fixtures."""
+"""Contract tests: the shared models accept the demo fixtures."""
 
 import json
 from pathlib import Path

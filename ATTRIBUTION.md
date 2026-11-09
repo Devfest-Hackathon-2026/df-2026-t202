@@ -1,4 +1,4 @@
-# Attribution and licenses
+# Tripi — attribution and licenses
 
 Source for the required attribution and licensing sheet (著作物利用シート). Add a row for every library, font, data
 source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check each license at the source before submission.
@@ -33,7 +33,8 @@ source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check 
 ## Fonts, data, content, images
 | Item | Type | License / terms |
 | --- | --- | --- |
-| Noto Sans JP (Google Fonts) | Font | SIL Open Font License 1.1 |
+| Inter (Google Fonts, via `next/font`) | Font | SIL Open Font License 1.1 |
+| Noto Sans JP (Google Fonts, via `next/font`) | Font | SIL Open Font License 1.1 |
 | Google Maps / Places / Routes data and photos | Data | Google Maps Platform Terms of Service (show attribution) |
 | YouTube videos | Content | YouTube API Services Terms (official embedded player only) |
 | Gemini (Vertex AI) | Service | Google Cloud Terms of Service |

@@ -1,4 +1,4 @@
-"""Concierge agent: free text → structured slot updates (PLAN.md 8.3, BACKEND_PERSON_A.md T3)."""
+"""Concierge agent: free text → structured slot updates (PLAN.md 8.3)."""
 
 import json
 from datetime import datetime

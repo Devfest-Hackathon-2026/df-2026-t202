@@ -1,8 +1,8 @@
-"""Places API (New) over httpx (Person B). BACKEND_PERSON_B.md T1, PLAN.md 9.5.
+"""Places API (New) over httpx. PLAN.md 9.5.
 
 Headers: X-Goog-Api-Key (PLACES_API_KEY) and X-Goog-FieldMask with only the fields we use (the mask sets the price).
 
-Caching follows Google's Places policy (person_b_WHY.md, decision 9): cache_places stores only query -> placeId,
+Caching follows Google's Places policy (docs/decisions.md P9): cache_places stores only query -> placeId,
 which may be kept forever. Names, coordinates and opening hours are never stored; a cache hit looks the place up
 fresh by its ID (Place Details), so repeat runs also get exactly the same place.
 The cache is optional: if Firestore fails, we log it and call Google directly (decision 10).
@@ -45,7 +45,7 @@ COUNTRY_LANG = {
     "IT": "it",
 }
 
-# Retry once on temporary failures, then fail loudly (person_b_WHY.md, decision 5).
+# Retry once on temporary failures, then fail loudly (docs/decisions.md P5).
 RETRY_STATUS = {429, 500, 502, 503, 504}
 RETRY_DELAY_S = 0.5
 

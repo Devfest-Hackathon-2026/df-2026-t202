@@ -19,7 +19,7 @@ const notoSansJp = Noto_Sans_JP({
   variable: '--font-noto-sans-jp',
 });
 
-export const metadata: Metadata = { title: 'AI Trip Planner' };
+export const metadata: Metadata = { title: 'Tripi' };
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
 /** The language comes from the cookie, so the server renders the right text with no flash (PLAN.md 10.3). */

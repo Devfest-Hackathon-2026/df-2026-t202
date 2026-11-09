@@ -56,7 +56,7 @@ is `https://kyucat-trip.web.app` (Firebase Hosting rewrite to the App Hosting se
 - **No hard-coded UI text.** `t('key')` from `useT()` everywhere. Add every key to **both** `en.json` and `ja.json`.
 - Use the token utilities from `@theme`. No hard-coded colors.
 - Badges: "Estimate" on costs and estimated legs, "Please check" on times, hours, ferries, flights.
-- Planning progress from `trips.progress`: "Finding spots → Calculating travel times → Finding videos".
+- Planning progress from `trips.progress`: "Planning your days → Calculating travel times → Finding videos", with a "Usually 30–60 seconds" hint; the bar eases within the current stage (D83).
 - Every async view has loading, empty and error states. Tap targets ≥ 44 px. Keyboard and screen-reader labels on cards.
 
 ## Local dev
