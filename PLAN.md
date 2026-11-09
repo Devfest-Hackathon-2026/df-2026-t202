@@ -268,8 +268,9 @@ Rules:
 - `leg` is the move from this stop to the next. The last stop of a day has `leg: null`.
 - `leg.mode`: `"DRIVE"`, `"TRANSIT"`, `"WALK"`, `"FLIGHT"`, `"FERRY"`.
 - `leg.estimate: true` when the Routes API cannot compute it (flights, ferries, countries with no transit data). Gemini fills `minutes`. The UI shows a "please check" badge and "about" before the minutes.
-- `leg.line`: what to ride for TRANSIT, FERRY and FLIGHT (`"Kamome Shinkansen"`, `"Bus 52"`), else `null`. From the Routes API's transit details when it has a route, otherwise from the Planner. The UI shows it instead of a generic "Public transport".
+- `leg.line`: what to ride for TRANSIT, FERRY and FLIGHT (`"Kamome Shinkansen"`, `"Bus 52"`), else `null`. From the Routes API's transit details when it has a route, otherwise from the Planner. The UI shows the mode first, then the line, then the time: "Public transport · Kamome Shinkansen · about 1 h 30 min" (D82).
 - A WALK the Routes API times at over 30 minutes becomes the trip's ride mode (DRIVE, or TRANSIT for train/bus trips).
+- A TRANSIT route from the Routes API that rides no line (a walk-only answer, as in Japan) counts as no route: the leg walks if the stops are close, else keeps the Planner's train time and line with `estimate: true` (D82).
 - `time` is local time at the destination (`"HH:MM"`). No time-zone conversion in the MVP.
 - Costs are always ranges (`min`/`max`), never one exact number. UI shows an "estimate" badge.
 - `nameLocal` is the name in the destination's language. It is used for YouTube search.
@@ -393,10 +394,14 @@ Plan quality comes before speed: the Planner alone takes about 30 s, so a plan m
 
 ### 9.4 YouTube Shorts
 
-- `search.list` with `part=snippet`, `type=video`, `videoDuration=short`, `maxResults=5`, `regionCode={destination country}`.
-- Query: `"{nameLocal} shorts"`. **Do not set `relevanceLanguage`.** Videos in any language are OK.
-- Prefer results whose title contains the spot name.
-- Cache by `placeId` for 7 days in `cache_videos/{placeId}`.
+- `search.list` with `part=snippet`, `type=video`, `videoDuration=short`, `maxResults=10`, `regionCode={destination country}`.
+- Query: `"{name} 観光 shorts"` for a Japanese name, else `"{name} travel shorts"`; the trip-language name first, then the
+  other name when fewer than 3 were found (D79). **Do not set `relevanceLanguage`.** Videos in any language are OK.
+- Keep only results whose title contains the spot name.
+- One `videos.list` call (1 unit) drops Made for Kids videos and ranks the rest: travel videos first (a travel word or
+  hashtag such as `#japantravel`, `#旅行`, `観光` in the title, description or tags), then the trip-language search, then
+  the most views. Videos without a travel sign are kept, ranked last (D81).
+- Cache by `placeId` for 7 days in `cache_videos/{placeId}` (with a version `v`; a new way of picking re-searches).
 - The default quota allows about 100 searches per day. Pre-cache all demo spots before recording.
 - Fallback when nothing is found: a "Search on YouTube" link + a Places photo.
 

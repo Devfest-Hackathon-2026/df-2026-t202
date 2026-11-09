@@ -418,6 +418,21 @@ def test_transit_keeps_the_planners_line_when_routes_has_none(monkeypatch):
     assert (a.leg.line, a.leg.minutes, a.leg.estimate) == ("Kamome Shinkansen", 90, True)
 
 
+def test_a_long_walk_instead_of_a_planned_train_keeps_the_planners_train_time(monkeypatch):
+    async def leg(a, b, mode, lang):
+        return {"WALK": {"minutes": 45, "polyline": "w"}, "DRIVE": {"minutes": 8, "polyline": "d"}}.get(mode)
+
+    monkeypatch.setattr(routes, "leg", leg)
+    a, b = stop("s-101", "09:00", "Osaka Castle"), stop("s-102", "12:00", "Kuromon Market")
+    a.lat, a.lng, b.lat, b.lng = 34.687, 135.526, 34.672, 135.517  # 1.8 km, but a 45-minute walk
+    a.leg = Leg(mode="TRANSIT", minutes=20, line="Osaka Metro Chuo Line")
+    plan = Plan(title="t", language="en", days=[Day(day=1, stops=[a, b])])
+
+    asyncio.run(pipeline.add_legs(plan, jp_run()))
+
+    assert (a.leg.mode, a.leg.minutes, a.leg.estimate, a.leg.line) == ("TRANSIT", 20, True, "Osaka Metro Chuo Line")
+
+
 def test_retime_rounds_every_time_to_five_minutes():
     a, b, c = stop("s-101", "09:02", "A"), stop("s-102", "10:00", "B"), stop("s-103", "18:27", "C")
     a.leg, b.leg = Leg(mode="WALK", minutes=7), Leg(mode="WALK", minutes=3)

@@ -71,8 +71,9 @@ out = await llm.generate_json(  # cached Vertex AI client, JSON mode, validates,
 - Places API (New) and Routes API need `X-Goog-Api-Key` and **`X-Goog-FieldMask` with only the fields we use** (the mask sets the price).
 - Send `languageCode` = trip language. For `nameLocal`, look up again in the destination language (PLAN.md 9.5).
 - Routes: one `computeRoutes` call per leg for TRANSIT (no waypoints). FLIGHT/FERRY or no route → keep the Planner minutes with `estimate: true`.
-- YouTube `search.list`: `type=video`, `videoDuration=short`, `maxResults=5`, `regionCode`=destination, query `"{nameLocal} shorts"`,
-  **no `relevanceLanguage`**. Cache by placeId in `cache_videos` for 7 days. Pre-cache demo spots before recording.
+- YouTube `search.list`: `type=video`, `videoDuration=short`, `maxResults=10`, `regionCode`=destination, query
+  `"{name} 観光 shorts"` / `"{name} travel shorts"`, **no `relevanceLanguage`**. Rank travel videos first (PLAN.md 9.4, D81).
+  Cache by placeId in `cache_videos` for 7 days. Pre-cache demo spots before recording.
 - Run calls in parallel with `asyncio.gather`. Plan quality comes before speed (D44); the Planner alone takes about 30 s.
 - Keys are read from `get_settings()` (`SecretStr` → `.get_secret_value()`). Never log them.
 

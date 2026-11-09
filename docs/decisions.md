@@ -483,3 +483,16 @@ Full options, pros and cons for these are in [`person_b_WHY.md`](../person_b_WHY
 - **Chosen:** `trip-api` min instances = 1 until Nov 14, then back to 0. **Rejected:** scale to zero (the first request after idle waits for a cold start).
 - **Why:** Reviewers open the app at random times; a slow first card looks broken. Cost is small against the $20 credit.
 - **Decided by:** Nazmul (Claude recommended) · 2026-11-09
+
+### D81. Shorts: search for travel videos, rank travel first, then views
+- **Chosen:** One search per name with a travel word in the destination's language (`"大阪城 観光 shorts"`, `"Osaka Castle travel shorts"`), 10 results instead of 5 (same 100-unit cost). The existing `videos.list` call (1 unit for any parts) now also reads title, description, tags and views. Order: travel videos first (a travel word or hashtag such as `#japantravel`, `#osakatravel`, `#旅行`, `観光` in title, description or tags), then the trip-language search (D79), then the most views. Videos that name the spot but show no travel sign are kept, ranked last. Videos removed since the search are dropped. Cached entries carry a version (`v: 2`); older ones are searched again.
+- **Rejected:** `order=viewCount` on the search (YouTube then ranks popular clips over good matches); searching the exact hashtag `#<place>travel` first and falling back to a plain search (often empty for small spots, up to twice the quota); views only (a viral non-travel clip still wins); dropping videos with no travel sign (more stops with no Short).
+- **Why:** Testing the deployed app showed Shorts that named the spot but were not about visiting it. Same quota per plan. Changing the cache version means the demo must be pre-cached again (`scripts/precache_demo.py`, about 30–40 searches).
+- **Decided by:** Raghav (Person B; idea: sort by views and prefer travel hashtags; Claude proposed the single-search ranking) · 2026-11-09
+
+### D82. A "train" route that only walks is no route; legs always name the mode
+- **Chosen:** When the Routes API answers a TRANSIT request with a route that rides no line (Japan, where it has no transit data), treat it as no route. The leg then walks if the stops are within 2 km and the walk is 30 min or less; otherwise it keeps the Planner's train time and line, marked "about" and "Please check" (also when a planned train turned into a walk over 30 min; a planned walk over 30 min still uses car time + 10, D78). The leg label always starts with the mode: "Walk · 18 min", "Public transport · Osaka Metro Chuo Line · about 20 min".
+- **Rejected:** Car time + 10 min for a planned train (a road time, not a train time; kept only when the Planner planned a walk). Showing the line instead of the mode (as before) or a mode icon (less clear, and the share text is plain text).
+- **Why:** Testing the deployed app showed "Osaka Metro Chuo Line · 59 min" from Osaka Castle to Kuromon Market: a 59-minute walk from Routes, labelled with the Planner's line, with no "about". Nobody could tell if it meant walking or riding, and the 30-minute walk rule never ran because the leg said TRANSIT.
+- **Decided by:** Raghav (Person B; found in testing, chose the Planner's train time and "mode first"; Claude found the cause) · 2026-11-09
+
