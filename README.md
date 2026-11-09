@@ -29,7 +29,7 @@ DevFest GDGoC Japan Hackathon 2026 · カテゴリ：**観光** · チーム：K
 ## アーキテクチャ
 
 ```
-ブラウザ / スマホ（Angular・Firebase App Hosting）
+ブラウザ / スマホ（Next.js・Firebase App Hosting）
   ├─ Maps JavaScript API・YouTube IFrame Player（表示のみ、ブラウザ用キーはドメイン制限）
   ├─ Firebase Authentication・App Check
   ├─ Firestore リスナー ◄── 旅行・メッセージ・プラン・進捗をリアルタイムで受信
@@ -56,12 +56,12 @@ Cloud Run：Planner API（Python・FastAPI・google-genai）
 | Maps JavaScript API | 地図とルート表示 |
 | YouTube Data API v3 | スポットごとのショート動画検索 |
 | Cloud Run | バックエンド API |
-| Firebase App Hosting | フロントエンド（Angular） |
+| Firebase App Hosting | フロントエンド（Next.js） |
 | Cloud Firestore | 旅行・チャット・プランの保存とリアルタイム同期 |
 | Firebase Authentication | Google ログイン・匿名ログイン（共有ページ） |
 | Firebase App Check | API の不正利用防止（reCAPTCHA Enterprise） |
 | Secret Manager | サーバー用 API キーの管理 |
-| Angular | フロントエンドフレームワーク |
+| Next.js（React） | フロントエンドフレームワーク |
 
 採用理由とメリット・デメリットは [PLAN.md の 16 章](PLAN.md#16-decisions-log-own-the-why--use-for-rationale--pros-and-cons) にまとめています。
 
@@ -70,7 +70,7 @@ Cloud Run：Planner API（Python・FastAPI・google-genai）
 ```
 PLAN.md          仕様と開発計画（唯一の正）
 api/             Cloud Run のバックエンド（Python 3.12・FastAPI）
-web/             フロントエンド（Angular 21・App Hosting）
+web/             フロントエンド（Next.js 16・App Hosting）
 firestore.rules  Firestore セキュリティルール
 firebase.json    Firestore 設定とエミュレーター
 docs/            審査基準メモ・AI 利用記録・運営のリポジトリルール
@@ -95,16 +95,16 @@ uv pip install --python .venv/bin/python -r requirements-dev.txt
 .venv/bin/uvicorn app.main:app --reload --port 8080
 
 # 3. Web（web/ で）
-cp .env.example .env                      # USE_EMULATORS=true（コミットしない）
+cp .env.example .env.local                # NEXT_PUBLIC_USE_EMULATORS=true（コミットしない）
 npm install
-npm start                                 # http://localhost:4200
+npm run dev                               # http://localhost:4200（npm start は本番サーバー）
 ```
 
 テスト：
 
 ```bash
 cd api && .venv/bin/pytest -q && .venv/bin/ruff check .
-cd web && npm run build && npm test
+cd web && npm run build && npm test   # build は型チェックも実行
 ```
 
 ## デプロイ
@@ -120,6 +120,7 @@ gcloud run deploy trip-api --source api --region asia-northeast1 \
 firebase deploy --only firestore:rules,firestore:indexes
 
 # Web → Firebase App Hosting：コンソールでバックエンドを作成し、ルートディレクトリを web に設定（main への push で自動デプロイ）
+#   Next.js は App Hosting の組み込み対応（設定不要）。環境変数は web/apphosting.yaml の NEXT_PUBLIC_* を埋める
 ```
 
 ## セキュリティ

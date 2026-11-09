@@ -50,7 +50,7 @@ Priority: the MVP (PLAN.md 3.1, F1–F5 + F10) working end to end > polish > str
 ```
 PLAN.md            Single source of truth
 api/               Python 3.12 + FastAPI on Cloud Run                 → api/AGENTS.md
-web/               Angular 21 + Material + AngularFire on App Hosting → web/AGENTS.md
+web/               Next.js 16 (App Router) + React 19 on App Hosting  → web/AGENTS.md
 firestore.rules    Members-only reads; no client writes to trips (PLAN.md 11.1)
 firebase.json      Firestore config + emulators (Auth :9099, Firestore :8081, UI :4000)
 scripts/check-secrets.sh   Scan staged changes for keys before committing
@@ -68,9 +68,9 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 .venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/ruff format --check .
 
 # Web (web/), Node >= 22.12, npm 11
-npm install            # use npm 11 (npx npm@11 install) if npm 10 crashes with "edgesOut"
-npm start              # http://localhost:4200 (writes src/environments/env.generated.ts from web/.env first)
-npm run build && npm test
+npm install
+npm run dev            # http://localhost:4200  (npm start is the PRODUCTION server in Next.js)
+npm run build && npm test   # build also type-checks
 ```
 
 ## Invariants (never break)

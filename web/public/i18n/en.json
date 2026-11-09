@@ -1,12 +1,268 @@
 {
-  "app": { "name": "AI Trip Planner" },
-  "home": { "title": "My trips", "newTrip": "New trip" },
-  "chat": { "title": "Plan your trip", "notDecided": "Not decided yet", "send": "Send" },
+  "app": {
+    "name": "AI Trip Planner"
+  },
+  "home": {
+    "title": "My trips",
+    "newTrip": "New trip",
+    "empty": "No trips yet. Start a new one.",
+    "prompt": "Where do you want to go?",
+    "promptPlaceholder": "Tell me in your own words",
+    "suggestion": {
+      "a": {
+        "label": "Kyushu, 3 nights",
+        "send": "Kyushu for 4 people, 3 nights, hot springs and night views"
+      },
+      "b": {
+        "label": "Nagasaki night view",
+        "send": "A weekend in Nagasaki for the night view"
+      },
+      "c": {
+        "label": "Fukuoka food",
+        "send": "Street food in Fukuoka"
+      },
+      "d": {
+        "label": "You decide",
+        "send": "You decide for me"
+      }
+    },
+    "feature": {
+      "plan": "Answer question cards in a chat",
+      "real": "Real places and real travel times",
+      "share": "Share it with friends by link"
+    },
+    "fromMap": "Pick on the map",
+    "start": "New trip"
+  },
+  "trip": {
+    "untitled": "New trip"
+  },
+  "auth": {
+    "signInGoogle": "Sign in with Google",
+    "signOut": "Sign out",
+    "signInNeeded": "Sign in to plan this trip.",
+    "account": "Account",
+    "signInGuest": "Continue as a guest (local only)",
+    "language": "Language",
+    "languageNote": "New trips use this language. Trips you already started keep theirs."
+  },
+  "state": {
+    "loading": "Loading…",
+    "empty": "No messages yet.",
+    "error": "Could not load this trip.",
+    "notFound": "This trip was not found.",
+    "sendFailed": "That did not go through. Please try again.",
+    "working": "Working…"
+  },
+  "status": {
+    "chatting": "Collecting your plan",
+    "planning": "Building the plan",
+    "ready": "Plan ready",
+    "error": "Something went wrong"
+  },
+  "sheet": {
+    "label": "Assistant and itinerary",
+    "tabs": "Switch view",
+    "chat": "Chat",
+    "plan": "Itinerary",
+    "expand": "Open the sheet",
+    "collapse": "Close the sheet"
+  },
+  "map": {
+    "noKey": "The map needs NEXT_PUBLIC_MAPS_BROWSER_KEY. Everything else still works."
+  },
+  "slot": {
+    "summary": "What you have decided",
+    "dest": "Destination",
+    "dates": "Dates",
+    "people": "Travellers",
+    "budget": "Budget",
+    "transport": "Transport",
+    "prefs": "Style",
+    "musts": "Must-sees"
+  },
+  "card": {
+    "ok": "OK",
+    "add": "Add",
+    "skip": "Leave it to you",
+    "generate": "Build the plan",
+    "dest": {
+      "label": "Destination",
+      "placeholder": "Anywhere in the world",
+      "mapHint": "Tap a region on the map",
+      "hint": "Pick a card, or type above",
+      "insideHint": "Which parts of {area} do you want to include?"
+    },
+    "dates": {
+      "start": "Leaving",
+      "end": "Coming back",
+      "nights": "{n} nights",
+      "thisWeekend": "This weekend",
+      "nextWeekend": "Next weekend",
+      "nextMonthWeekend": "A weekend next month",
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "pickStart": "Pick a start date",
+      "pickEnd": "Pick the day you come back",
+      "dayTrip": "Day trip"
+    },
+    "people": {
+      "adult": "Adults",
+      "adultSub": "13 and over",
+      "child": "Children",
+      "childSub": "2–12",
+      "infant": "Infants",
+      "infantSub": "under 2",
+      "decrease": "One fewer {what}",
+      "increase": "One more {what}"
+    },
+    "budget": {
+      "label": "Budget",
+      "basis": "Budget per",
+      "person": "Per person",
+      "total": "Whole trip",
+      "less": "Lower the budget",
+      "more": "Raise the budget"
+    },
+    "prefs": {
+      "label": "Your own style",
+      "placeholder": "Add your own"
+    },
+    "musts": {
+      "label": "A place you must see",
+      "placeholder": "Add a place"
+    },
+    "change": "Change",
+    "transport": {
+      "origin": "Leaving from (station, airport, ...)"
+    },
+    "back": "Back",
+    "editing": "Changing {what}"
+  },
+  "transport": {
+    "shinkansen": "Shinkansen",
+    "train": "Train",
+    "plane": "Plane",
+    "car": "Rental car",
+    "bus": "Bus",
+    "ferry": "Ferry",
+    "any": "You decide"
+  },
+  "pref": {
+    "onsen": "Hot springs",
+    "food": "Food",
+    "views": "Great views",
+    "history": "History",
+    "walking": "Walking the streets",
+    "night_view": "Night views",
+    "nature": "Nature",
+    "shopping": "Shopping"
+  },
+  "chat": {
+    "title": "Plan your trip",
+    "notDecided": "Not decided yet",
+    "send": "Send",
+    "input": "Message",
+    "inputPlaceholder": "Type anything"
+  },
   "plan": {
     "title": "Your trip",
-    "progress": { "spots": "Finding spots", "routes": "Calculating travel times", "videos": "Finding videos", "done": "Done" },
-    "badge": { "estimate": "Estimate", "pleaseCheck": "Please check" }
+    "placeholder": "The itinerary comes next.",
+    "progress": {
+      "spots": "Finding spots…",
+      "routes": "Calculating travel times…",
+      "videos": "Finding videos…",
+      "done": "Done"
+    },
+    "badge": {
+      "estimate": "Estimate",
+      "pleaseCheck": "Please check"
+    },
+    "none": "No plan yet. Finish the chat and build one.",
+    "days": "Days",
+    "allDays": "All days",
+    "day": "Day {n}",
+    "stats": "{stops} stops · {minutes} travelling",
+    "checks": "Check before you go"
   },
-  "share": { "title": "Shared trip" },
-  "language": { "en": "English", "ja": "日本語" }
+  "share": {
+    "title": "Shared trip",
+    "open": "Share",
+    "hint": "Anyone with the link can see this trip. They cannot change it.",
+    "create": "Create a link",
+    "copyLink": "Copy the link",
+    "copyText": "Copy as text for LINE",
+    "linkCopied": "Link copied.",
+    "textCopied": "Copied as text.",
+    "viewOnly": "View only",
+    "notFound": "This link does not work any more."
+  },
+  "language": {
+    "en": "English",
+    "ja": "日本語"
+  },
+  "action": {
+    "close": "Close",
+    "previous": "Previous",
+    "next": "Next",
+    "openInMaps": "Open in Google Maps",
+    "watchShort": "Watch a Short"
+  },
+  "cost": {
+    "person": "Cost per person",
+    "total": "Cost for the whole trip"
+  },
+  "time": {
+    "minutes": "{m} min",
+    "hours": "{h} h",
+    "hoursMinutes": "{h} h {m} min",
+    "min": "min"
+  },
+  "leg": {
+    "DRIVE": "Car",
+    "TRANSIT": "Train or bus",
+    "WALK": "Walk",
+    "FLIGHT": "Flight",
+    "FERRY": "Ferry"
+  },
+  "shorts": {
+    "title": "Shorts",
+    "play": "Watch a Short of {name}",
+    "none": "No video for this spot.",
+    "searchOnYouTube": "Search on YouTube"
+  },
+  "dest": {
+    "kyushu": {
+      "name": "All of Kyushu",
+      "sub": "Seven prefectures"
+    },
+    "fukuoka": {
+      "name": "Fukuoka",
+      "sub": "Food stalls, Itoshima"
+    },
+    "nagasaki": {
+      "name": "Nagasaki",
+      "sub": "Night views, Chinatown"
+    },
+    "kumamoto": {
+      "name": "Kumamoto",
+      "sub": "Aso, Kumamoto Castle"
+    },
+    "oita": {
+      "name": "Oita",
+      "sub": "Beppu, Yufuin"
+    },
+    "miyazaki": {
+      "name": "Miyazaki",
+      "sub": "Takachiho, the coast"
+    },
+    "kagoshima": {
+      "name": "Kagoshima",
+      "sub": "Sakurajima, Ibusuki"
+    },
+    "saga": {
+      "name": "Saga",
+      "sub": "Yobuko, Ureshino"
+    }
+  }
 }

@@ -85,13 +85,14 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 
 | Layer | Choice |
 |---|---|
-| Front-end framework | **Angular** (standalone components, Signals). Fallback: Next.js only if no team member knows Angular. Decide on Nov 8. |
-| UI components | Angular Material |
-| Map | `@angular/google-maps` + Maps JavaScript API |
+| Front-end framework | **Next.js 16** (App Router, React 19). Switched from Angular on Nov 9: the only front-end code was a skeleton, the team knows Next.js, and App Hosting has preconfigured support for it (see `docs/decisions.md` D58). |
+| Styling | **Tailwind CSS v4**. The design tokens live in `@theme` in `app/globals.css`, so each one is both a CSS variable and a utility (`--color-ink` → `bg-ink`). No component library. |
+| Map | `@vis.gl/react-google-maps` (the Google Maps Platform React library) + Maps JavaScript API |
 | Destination search | Places Autocomplete (Maps JavaScript API, Places library) |
 | Video player | YouTube IFrame Player API |
-| UI translations | Transloco (runtime switch, JSON files) |
-| Firebase SDK | AngularFire (Firestore, Auth, App Check) |
+| Icons | **lucide-react** (ISC). No hand-drawn SVG paths in components. |
+| UI translations | `lib/i18n.tsx`: both JSON files are bundled, the language comes from a cookie so the server renders it |
+| Firebase SDK | Firebase JS SDK (Firestore, Auth, App Check) through `lib/firebase.ts` |
 | Front-end hosting | Firebase App Hosting (auto-deploy from GitHub `main`) |
 | Back end | Python 3.12 + FastAPI on Cloud Run |
 | AI agents | **google-genai SDK** (direct calls with a JSON response schema), Gemini via Vertex AI. Not ADK: less setup for a one-day build (see section 16) |
@@ -112,7 +113,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 ## 5. Architecture
 
 ```
-Browser / phone (Angular on Firebase App Hosting)
+Browser / phone (Next.js on Firebase App Hosting)
   ├─ Maps JavaScript API, YouTube IFrame Player   (display only, browser key restricted to our domain)
   ├─ Firebase Auth, App Check
   ├─ Firestore listener  ◄──────────────── real-time trip, messages, plan, progress
@@ -150,15 +151,16 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
 ├─ firestore.rules
 ├─ firestore.indexes.json
 ├─ .gitignore               ← must include .env*, *serviceAccount*.json, node_modules, __pycache__
-├─ web/                     ← Angular app (App Hosting root)
+├─ web/                     ← Next.js app, App Router (App Hosting root)
 │  ├─ apphosting.yaml
-│  ├─ src/app/
-│  │  ├─ core/              ← auth, api client, firestore services, language service
-│  │  ├─ chat/              ← S1 chat page + cards/
-│  │  ├─ plan/              ← S3 trip page, map, timeline, shorts viewer
-│  │  ├─ share/             ← S6 shared page
-│  │  └─ home/              ← S7 my trips
-│  └─ public/i18n/          ← en.json, ja.json (Angular CLI serves public/ at the site root)
+│  ├─ app/
+│  │  ├─ layout.tsx         ← language from the cookie, fonts, i18n provider
+│  │  ├─ page.tsx           ← S7 my trips
+│  │  ├─ trips/[tripId]/    ← the trip screen: map + sheet (S1-S5)
+│  │  └─ s/[shareId]/       ← S6 shared page
+│  ├─ components/           ← shared UI (cards, map, timeline, Shorts viewer)
+│  ├─ lib/                  ← env, firebase, api client, i18n
+│  └─ public/i18n/          ← en.json, ja.json (Next serves public/ at the site root)
 └─ api/                     ← Cloud Run service
    ├─ Dockerfile
    ├─ requirements.txt
@@ -410,42 +412,55 @@ Plan quality comes before speed: the Planner alone takes about 30 s, so a plan m
 
 ---
 
-## 10. Front end (Angular)
+## 10. Front end (Next.js)
 
 ### 10.1 Screens
 
+The design mock (team canvas, `docs/decisions.md` D59) puts the whole trip in **one screen**: a full-screen
+map with a bottom sheet over it. The sheet has two tabs and three heights (peek / half / full).
+
 | Screen | Route | MVP? | Contents |
 |---|---|---|---|
-| S7 My trips | `/` | Yes | List of my trips, "New trip" button, language switch |
-| S1 Chat | `/trips/:tripId` | Yes | Chat bubbles, current card, text input. PC: chat left + S2 right. Phone: tabs "Chat / Plan". |
-| S2 Plan summary | right panel of S1 | Yes | Each slot with status (empty / done / skipped). Tap to re-ask. |
-| S3 Trip page | `/trips/:tripId/plan` | Yes | Title, day tabs, map, timeline, Shorts thumbnails, "Open in Google Maps", cost range, checks |
-| S4 Shorts viewer | overlay on S3 | Yes | Vertical swipe through Shorts in trip order. Label "Day N · time · spot". |
-| S5 Share sheet | from S3 | Yes | Copy link, copy plain text for LINE |
-| S6 Shared page | `/s/:shareId` | Yes | Same as S3, read-only, no login needed (anonymous auth) |
+| S7 Start | `/` | Yes | Big "Where to, with whom?" input over the dusk-seascape photo, suggestion chips, language switch, account menu (trips list and sign out). |
+| S1 Chat | `/trips/[tripId]`, sheet tab "Chat" | Yes | Chat bubbles, the current question card, text input. |
+| S2 Plan summary | chips at the top of the sheet | Yes | One chip per answered slot. Tap to re-ask. |
+| S3 Trip page | `/trips/[tripId]`, sheet tab "Itinerary" | Yes | Day tabs, day theme and stats, timeline with legs, Shorts thumbnails, warnings, checks. The map behind shows the day's route. |
+| S3b Place card | overlay on the map | Yes | Tap a pin: name, note, "Open in Google Maps", Shorts link, previous/next |
+| S4 Shorts viewer | overlay | Yes | Vertical swipe through Shorts in trip order. Label "Day N · time · spot". |
+| S5 Share sheet | from the top bar | Yes | Copy link, copy plain text for LINE. (Member list and edit/view permissions are F7, stretch — not shown in the MVP.) |
+| S6 Shared page | `/s/[shareId]` | Yes | Same as S3, read-only, no login needed (anonymous auth) |
 
 Design the trip page and the shared page **for phones first**.
 
+**Desktop (≥ 900 px, the desktop mock).** Same components, different placement, by CSS only:
+the sheet becomes a 440 px column down the left (no drag handle, always full height), the trip name and the
+share button move from the floating bar into that column's header, the day tabs float over the map at the top
+right, and the place card and the Shorts viewer sit beside the column instead of filling the screen.
+
 ### 10.2 State
 
-- The trip document in Firestore is the source of truth. Copy it into Signals for rendering.
+- The trip document in Firestore is the source of truth. A Firestore listener feeds React state for rendering.
 - The current card comes from the last AI message's `ui` field.
 - Temporary card state (for example, a half-selected date range) stays in the component only.
 - During planning, show progress text from `trips.progress`: "Finding spots → Calculating travel times → Finding videos".
 
 ### 10.3 Language
 
-- `LanguageService` holds `"en"` or `"ja"`. Save it to `users/{uid}.language` and localStorage (wrapped in try/catch).
-- UI text from `assets/i18n/en.json` and `ja.json` via Transloco. Never hard-code UI text.
+- The language (`"en"` or `"ja"`) lives in a cookie, so `app/layout.tsx` renders the right text on the server with no flash. Also save it to `users/{uid}.language`.
+- UI text from `public/i18n/en.json` and `ja.json` through `useT()` in `lib/i18n.tsx`. Never hard-code UI text.
 - The Maps JavaScript API language is set when the script loads. After a language change, reload the page.
 - A viewer of a shared trip sees UI in their own language. The plan text stays in the trip's language.
 
 ### 10.4 Design
 
-- Background: blue sky and grass photo, frosted-glass panels on top.
-- Main buttons and user bubbles: coral. AI icon: blue sparkle.
-- Each day's route has its own color. Pins show the order in the day.
-- Font: Noto Sans JP (Google Fonts) for both languages.
+Tokens live in `web/app/globals.css` and come from the design mock (`docs/decisions.md` D59). Never hard-code a color.
+
+- Start screen: the dusk-seascape image (`web/public/dusk.webp`) with frosted-glass panels on top. Inside a trip, the map is the background.
+- Frosted glass in three depths: `.frost` (bars and chips), the sheet, and cards over the photo.
+- Ink `--ink` #222222, secondary text `--muted` #6A6A6A, lines `--line` #DDDDDD.
+- Primary buttons and the send button: `--accent` #D9443B. Selected pills: solid ink.
+- Each day's route has its own color (`--day-1..7`; days 1–4 are #D9443B, #2563EB, #059669, #B45309). Pins show the order in the day.
+- Fonts: Inter (Latin) + Noto Sans JP (Japanese), both from Google Fonts.
 - Badges: "Estimate" on costs and estimated legs. "Please check" on times, hours, ferries, flights.
 
 ---
@@ -487,12 +502,15 @@ Design the trip page and the shared page **for phones first**.
 
 **web (App Hosting)**
 
+Next.js inlines `NEXT_PUBLIC_*` at build time, so every name below carries that prefix and every value is public.
+
 | Name | Source |
 |---|---|
-| Firebase web config | `apphosting.yaml` env (public by design) |
-| `MAPS_BROWSER_KEY` | `apphosting.yaml` env, key restricted as in 11.2 |
-| `API_BASE_URL` | Cloud Run URL |
-| reCAPTCHA Enterprise site key | `apphosting.yaml` env |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`, `_APP_ID` | `apphosting.yaml` env (public by design) |
+| `NEXT_PUBLIC_MAPS_BROWSER_KEY` | `apphosting.yaml` env, key restricted as in 11.2 |
+| `NEXT_PUBLIC_API_BASE_URL` | Cloud Run URL |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | `apphosting.yaml` env |
+| `NEXT_PUBLIC_USE_EMULATORS` | local only (`web/.env.local`) |
 
 ---
 
@@ -504,7 +522,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 - [ ] INF: GCP project, billing, budget alert, enable APIs (Vertex AI, Maps JS, Places New, Routes, YouTube Data v3, Secret Manager, Cloud Run, Firestore).
 - [ ] INF: Firebase project, Auth (Google + anonymous), Firestore, App Check.
 - [ ] INF: Create API keys, restrict them, store server keys in Secret Manager.
-- [ ] FE: Angular skeleton, deploy "hello" to App Hosting.
+- [x] FE: front-end skeleton, deploy "hello" to App Hosting. (Angular on Nov 8; rebuilt on Next.js on Nov 9, D58.)
 - [ ] BE: FastAPI skeleton with `/healthz`, deploy to Cloud Run (`gcloud run deploy --source`).
 - [ ] DES: Name the app. Simple mockups of S1 and S3.
 - **Check:** both URLs work on a phone.
@@ -567,8 +585,9 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 
 | Item | Type | License / terms |
 |---|---|---|
-| Angular, Angular Material, @angular/google-maps | Library | MIT |
-| AngularFire, Transloco | Library | MIT |
+| Next.js, React | Library | MIT |
+| @vis.gl/react-google-maps | Library | Apache 2.0 |
+| Firebase JS SDK | Library | Apache 2.0 |
 | FastAPI, Pydantic, Uvicorn | Library | MIT / BSD |
 | google-genai, firebase-admin | Library | Apache 2.0 |
 | Noto Sans JP | Font | SIL Open Font License |
@@ -592,7 +611,7 @@ Check each license at the source before submission.
 | Shorts in any language, searched by local name | Match video language to the user | Many spots only have local-language videos. Videos show a place well without the words. |
 | YouTube Shorts as spot previews | Instagram/TikTok reels | Official API and embed player. Keeps the stack Google-only (hackathon rule). |
 | Firestore progress updates | SSE streaming | Simpler, works with the real-time listener we already need. SSE moved to stretch. |
-| Angular | React / Next.js, Flutter | Google framework, supported by App Hosting, has SSR for future LINE previews. |
+| Next.js (App Router) | Angular (used until Nov 9), Vite + React, Flutter | App Hosting builds and deploys it with no extra configuration, the team already knows it, and SSR keeps the LINE preview (OGP) option open. A Vite SPA would need a static server wired up by hand on submission day. Angular cost nothing to leave: it was a 222-line skeleton. |
 | Cloud Run + FastAPI (Python) | Cloud Functions; Node.js backend | Pydantic gives strict validation of AI output. Cloud Run handles 30-second jobs well. |
 | google-genai SDK directly, not ADK | Agent Development Kit (ADK) | Our agents are single calls with a JSON schema; the flow is decided by server code. ADK adds setup time we don't have with one day left. Can switch if a member knows ADK well. |
 | Firestore | Cloud SQL | Real-time sync for shared trips, no server to manage, free tier. |
@@ -639,6 +658,6 @@ Everything in the video must be real app output.
 
 - [ ] Final app name
 - [ ] Team members and roles (FE / BE / INF / DES)
-- [ ] Angular confirmed? (fallback: Next.js)
+- [x] Front-end framework: **Next.js** (decided 2026-11-09, `docs/decisions.md` D58). Angular was the first choice until then.
 - [ ] Track: in-person venue or online?
 - [ ] Evidence for the problem (survey?)

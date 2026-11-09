@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens from the mock in the team's design canvas (docs/decisions.md D59).
+ * Declared with @theme, so every token is both a CSS variable and a Tailwind utility,
+ * e.g. --color-ink -> bg-ink / text-ink. Never hard-code a color (PLAN.md 10.4).
+ */
+@theme {
+  /* Text */
+  --color-ink: #222222;
+  --color-ink-strong: #111827;
+  --color-muted: #6a6a6a;
+  --color-muted-strong: #4b5563;
+
+  /* Surfaces and lines */
+  --color-surface: #ffffff;
+  --color-fill: #f1f1f1;
+  --color-fill-soft: #f0f0f0;
+  --color-line: #dddddd;
+  --color-line-soft: #e5e5e5;
+
+  /* Accent: primary buttons, the send button */
+  --color-accent: #d9443b;
+  --color-on-accent: #ffffff;
+
+  /* Map */
+  --color-map-water: #cfe3f0;
+  --color-map-land: #f7f5f0;
+
+  /* One color per day, on the map and in the timeline */
+  --color-day-1: #d9443b;
+  --color-day-2: #2563eb;
+  --color-day-3: #059669;
+  --color-day-4: #b45309;
+  --color-day-5: #7c3aed;
+  --color-day-6: #db2777;
+  --color-day-7: #0f766e;
+
+  --radius-sheet: 28px;
+  --radius-card: 14px;
+
+  --font-sans: var(--font-inter), var(--font-noto-sans-jp), system-ui, sans-serif;
+
+  /* The bottom sheet's three heights, as in the mock (132 / 470 / 770 of 844) */
+  --height-sheet-peek: 15.6svh;
+  --height-sheet-half: 55.7svh;
+  --height-sheet-full: 91.2svh;
+
+  --ease-sheet: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* The desktop mock is 1440x900; below this the phone layout is used. */
+  --breakpoint-desk: 900px;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    color: var(--color-ink);
+    background: var(--color-map-water);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    color-scheme: light;
+  }
+
+  button {
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+@layer components {
+  /*
+   * Glass over the map. Same recipe as the sign-in card (50-ish opacity, a wide blur, a thin
+   * light edge); light instead of dark, because what sits on it is ink-coloured text.
+   */
+  .frost {
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 8px 24px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(56px) saturate(1.5);
+    -webkit-backdrop-filter: blur(56px) saturate(1.5);
+  }
+
+  .noscroll {
+    scrollbar-width: none;
+  }
+
+  .noscroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
