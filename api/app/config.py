@@ -30,8 +30,14 @@ class Settings(BaseSettings):
     skip_appcheck: bool = False  # SKIP_APPCHECK=1 for local development only
 
     # Abuse limits (PLAN.md 9.6)
-    max_plans_per_user_per_day: int = 20
-    max_messages_per_trip: int = 60
+    max_plans_per_user_per_day: int = 10
+    max_plans_per_guest_per_day: int = 3
+    max_trips_per_user_per_day: int = 10
+    max_trips_per_guest_per_day: int = 3
+    max_plans_per_day: int = 200  # whole app: protects the credit and the YouTube quota
+    max_messages_per_trip: int = 40
+    min_seconds_between_texts: float = 2.0  # per trip, free-text messages only (cards are cheap)
+    max_members_per_trip: int = 50  # owner + viewers who opened the share link
 
     @property
     def origins(self) -> list[str]:

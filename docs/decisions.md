@@ -103,10 +103,53 @@ The most important choices in Tripi: what we chose, what we rejected, why, and w
 - **Decided by:** Nazmul · 2026-11-09
 
 ### D17. Daily plan limit counted per Japan day
-- **Chosen:** Counter document `users/{uid}/limits/{YYYY-MM-DD}` (JST), updated in a transaction; 429 after 20. Clients can't read or write it (rules).
+- **Chosen:** Counter document `users/{uid}/limits/{YYYY-MM-DD}` (JST), updated in a transaction; 429 after 20 (now 10, D21). Clients can't read or write it (rules).
 - **Rejected:** An in-memory counter, which resets when Cloud Run scales or restarts.
 - **Why:** Works across instances; users can't reset it.
 - **Decided by:** team · 2026-11-08
+
+### D21. Production limits: per user, per guest and for the whole app
+- **Chosen:** "Balanced" limits (PLAN.md 9.6): 10 trips and 10 plans a day for signed-in users, 3 and 3 for guests,
+  200 plans a day for the whole app, 40 messages per trip, 2 s between texts, 50 members per shared trip. Places is
+  looked up only after the step and limit checks. A plan that fails upstream doesn't count. Request bodies over 16 KB
+  are refused.
+- **Rejected:** "Strict" (5/1 plans; a judge who experiments could hit a wall). "Loose" (keep 20 plans and add only a
+  trip cap; a new guest account still got a fresh allowance). Rate limiting by IP (Cloud Run sees Google's front end;
+  shared NATs would block real users).
+- **Why:** The review found that the per-trip and per-user limits reset by creating a new trip or a new guest account,
+  and that card answers could call Places after the limit. The whole-app cap protects the $20 credit and the ~100
+  YouTube searches a day during judging. Limits show a clear message, so normal use never notices them.
+- **Decided by:** Nazmul · 2026-11-10
+
+### D22. A trip is at most 20 days
+- **Chosen:** 20 days (19 nights) in one Planner call, enforced on the server (`flow.py`, `planner.trip_days`) and in the
+  date picker, which clears the dates and asks for 20 days or less when the end is too far out. Planner timeout raised from 90 s to 130 s per attempt
+  (two attempts = 260 s, inside the 270 s Cloud Run budget test).
+  **Rejected:** 14 days (first proposal; the team wanted longer trips); 20 days drafted in parallel chunks (new failure
+  mode on the freeze day); the old 60 days.
+- **Why:** Measured a real 20-day Kyushu draft on gemini-3.5-flash: 78 s, 74 stops. It fits one call with margin
+  once the timeout is 130 s. Known limits: Gemini packs long trips a little lighter (about 3.7 stops a day), and the
+  pipeline searches YouTube for at most 30 stops per plan (quota), so later days of a long trip show the photo and
+  "Search on YouTube" fallback.
+- **Decided by:** Nazmul · 2026-11-10
+
+### D23. Impossible requests are asked back, not planned
+- **Chosen:** Code rejects what can't work (dates in the past or 2+ years ahead, a budget of 0, no adult, a destination
+  not found on the map). The Concierge prompt asks back kindly with a real alternative for Mars, a free trip or more than
+  20 days. The Planner leaves out must-visit places in another country, with a `checks` line. The plan's currency comes
+  from the trip, never from Gemini (a non-ISO code crashed `Intl.NumberFormat` in the browser).
+  **Rejected:** Prompt only (the model can still slip; the code is the guarantee). Explicit Gemini safety settings
+  (risk of blocking real places such as the Nagasaki Atomic Bomb Museum; Vertex AI's default filters stay on).
+- **Why:** The review traced "Mars" and "0 budget": the card path stored an unknown place, and a 0 budget gave a normal
+  plan with no warning.
+- **Decided by:** Nazmul · 2026-11-10
+
+### D24. Destination suggestions: Kyushu first, then worldwide
+- **Chosen:** "All of Kyushu" (the demo, with its prefecture picker), then Kyoto, Seoul, Taipei, Bangkok, Bali, Paris,
+  New York. The server looks every pick up, which sets the country and currency. **Rejected:** fully global (the demo
+  would start by typing); different picks per language (more strings to keep in sync).
+- **Why:** The app works worldwide; eight Kyushu-only cards told users otherwise.
+- **Decided by:** Nazmul · 2026-11-10
 
 ## Front end and hosting
 
@@ -126,3 +169,38 @@ The most important choices in Tripi: what we chose, what we rejected, why, and w
 - **Chosen:** `trip-api` min instances = 1 until Nov 14, then back to 0. **Rejected:** scale to zero (the first request after idle waits for a cold start).
 - **Why:** Reviewers open the app at random times; a slow first card looks broken. Cost is small against the $20 credit.
 - **Decided by:** Nazmul · 2026-11-09
+
+### D25. A small account menu and a "My trips" page
+- **Chosen:** The avatar menu shows who is signed in, New trip, the 3 most recent trips and "See all trips", Settings
+  (language, currency) as a sub-view, and Sign out. All trips live on a new `/trips` page as cards with the
+  destination's Places photo (and its author credit). Guests see a badge and "Sign in with Google", which links the
+  guest account (`linkWithPopup`), so the uid, trips and limits carry over; if that Google account already exists,
+  the menu offers to sign in to it instead.
+  **Rejected:** Keeping one long dropdown with every trip and the settings; a side panel with tabs.
+- **Why:** The old menu grew with every trip and pushed settings and sign-out out of view, and trips with the same
+  place looked identical (no dates). Guests now have lower limits (D21), so they should know how to get more.
+- **Decided by:** Nazmul · 2026-11-10
+
+### D26. Group size rules
+- **Chosen:** At most 20 people (adults + children + infants), at least 1 adult, at most 1 infant per adult, at most 4
+  children per adult. Enforced in `flow.py` (each rule has its own error code) and on the people card, which shows a
+  short message when a tap would break a rule instead of silently disabling the button.
+  **Rejected:** 10 people (a big friend group would hit it); keeping 50 (the card capped the total at 50 while the
+  server allowed 50 of each, and the plans assume a car/train-sized group, not a bus).
+- **Why:** The review found the card and the server disagreed, and groups like "1 adult with 10 infants" were accepted.
+- **Decided by:** Nazmul · 2026-11-10
+
+### D27. Updating a plan changes only what's needed
+- **Chosen:** Once a plan exists, the chat can re-open any condition's card (tap a chip or a "Your trip" row, or type
+  "change the dates") and collect plan requests ("make day 2 more relaxed") in `trips.pendingEdits`. "Update the
+  plan" then asks the Planner to revise only the days that must change (`PlanUpdate`), reuses every verified place,
+  real route and cached video of the stops that stay, and re-checks only the changed days (plus days whose date
+  moved, for opening hours). It falls back to a full rebuild when the destination changed, the old plan has no slots
+  snapshot, the update leaves a day missing, or the Planner call fails early.
+  **Rejected:** A full rebuild on every change (simple, but every edit costs a new draft and every Places, Routes and
+  YouTube call again, takes 30–60 s, and can reshuffle days the user liked); patching the plan in code only (fast and
+  free, but can't handle "more relaxed" or new must-sees, and re-timing by hand breaks meals and opening hours).
+- **Why:** Edits are the moment users judge the app: small changes should feel small, keep the days they liked and
+  stay inside the API budget. The Planner still decides content (AGENTS rule 3: the server picks the card, the LLM
+  only extracts), and every output is validated like the other Gemini calls.
+- **Decided by:** Nazmul · 2026-11-10

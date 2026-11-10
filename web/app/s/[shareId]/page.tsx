@@ -10,7 +10,7 @@ import { SpotPanel } from '@/components/plan/spot-panel';
 import { BottomSheet, type SheetStop } from '@/components/bottom-sheet';
 import { SheetHeader } from '@/components/sheet-header';
 import { TripTopBar } from '@/components/trip-top-bar';
-import { post } from '@/lib/api';
+import { errorKey, post } from '@/lib/api';
 import { signInAsGuest, useAuthUser } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 import { usePlan, useTrip } from '@/lib/trip';
@@ -21,25 +21,29 @@ export default function SharePage({ params }: { params: Promise<{ shareId: strin
   const t = useT();
   const { user, loading: authLoading } = useAuthUser();
   const [tripId, setTripId] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null); // i18n key of the error
 
   // Sign in anonymously, then join the share: the API adds the viewer to trips.members.
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      void signInAsGuest().catch(() => setFailed(true));
+      void signInAsGuest().catch(() => setFailed('share.notFound'));
       return;
     }
     let active = true;
     post<{ tripId: string }>(`/shares/${shareId}/join`)
       .then((result) => active && setTripId(result.tripId))
-      .catch(() => active && setFailed(true));
+      .catch((e) => {
+        // A full share says so; anything else is shown as a missing link.
+        const key = errorKey(e);
+        if (active) setFailed(key === 'error.share_full' ? key : 'share.notFound');
+      });
     return () => {
       active = false;
     };
   }, [authLoading, user, shareId]);
 
-  if (failed) return <p className={PANEL_TEXT}>{t('share.notFound')}</p>;
+  if (failed) return <p className={PANEL_TEXT}>{t(failed)}</p>;
   if (!tripId) return <p className={PANEL_TEXT}>{t('state.loading')}</p>;
   return <SharedTrip tripId={tripId} />;
 }

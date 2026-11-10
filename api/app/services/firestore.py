@@ -65,8 +65,17 @@ async def add_message(trip_id: str, role: str, text: str, answer: dict | None = 
     return ref.id
 
 
-async def save_plan(trip_id: str, plan: Plan, reason: str = "initial") -> str:
-    """Save a new plan version and point the trip at it. Returns the planId."""
+async def get_plan(trip_id: str, plan_id: str) -> dict | None:
+    """A plan version doc ({version, plan, slots, reason, createdAt}), or None."""
+    snap = await _trip(trip_id).collection("plans").document(plan_id).get()
+    return snap.to_dict() if snap.exists else None
+
+
+async def save_plan(trip_id: str, plan: Plan, reason: str = "initial", slots: dict | None = None) -> str:
+    """Save a new plan version and point the trip at it. Returns the planId.
+
+    `slots` is a snapshot of the conditions the plan was made for: the next update compares against it (D27).
+    An update also clears trips.pendingEdits (they are now in the plan)."""
     trip_ref = _trip(trip_id)
     plan_ref = trip_ref.collection("plans").document()
 
@@ -76,20 +85,14 @@ async def save_plan(trip_id: str, plan: Plan, reason: str = "initial") -> str:
         version = 1
         async for snap in latest.stream(transaction=tx):
             version = int(snap.get("version")) + 1
-        tx.set(
-            plan_ref,
-            {"version": version, "plan": plan.model_dump(mode="json"), "reason": reason, "createdAt": now()},
-        )
-        tx.set(
-            trip_ref,
-            {
-                "currentPlanId": plan_ref.id,
-                "status": "ready",
-                "progress": "done",
-                "updatedAt": firestore.SERVER_TIMESTAMP,
-            },
-            merge=True,
-        )
+        doc = {"version": version, "plan": plan.model_dump(mode="json"), "reason": reason, "createdAt": now()}
+        if slots is not None:
+            doc["slots"] = slots
+        tx.set(plan_ref, doc)
+        trip = {"currentPlanId": plan_ref.id, "status": "ready", "progress": "done"}
+        if reason == "update":
+            trip["pendingEdits"] = []
+        tx.set(trip_ref, {**trip, "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
 
     await write(db().transaction())
     return plan_ref.id

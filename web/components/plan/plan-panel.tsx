@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ArrowUp,
   Car,
   Check,
   CircleAlert,
@@ -13,12 +14,14 @@ import {
   Share,
   Ship,
   TrainFront,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import { LanguageNote } from '@/components/language-note';
 import { DayTabs } from '@/components/day-tabs';
 import { dayColor } from '@/components/map-canvas';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { safeCurrency } from '@/lib/currency';
 import { useLanguage, useT } from '@/lib/i18n';
 import type { Cost, Day, Leg, LegMode, Plan, Progress, Stop, Trip } from '@/lib/types';
 
@@ -44,7 +47,7 @@ export function mapsUrl(stop: Stop): string {
 function money(currency: string, amount: number) {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
-    currency,
+    currency: safeCurrency(currency),
     currencyDisplay: 'narrowSymbol', // "¥", not "JP¥"
     maximumFractionDigits: 0,
   }).format(amount);
@@ -95,7 +98,14 @@ const STEP_SECONDS: Record<Progress, number> = { spots: 35, routes: 8, videos: 3
  * The current one spins, finished ones turn green. The bar eases towards 90% of the current stage over its typical
  * time, so a long Gemini draft still shows movement, but it never passes a stage the server hasn't reached.
  */
-export function PlanProgress({ progress }: { progress: Progress }) {
+export function PlanProgress({
+  progress,
+  updating = false,
+}: {
+  progress: Progress;
+  /** An existing plan is being updated (D27), not built. */
+  updating?: boolean;
+}) {
   const t = useT();
   const current = progress === 'done' ? PROGRESS_STEPS.length : PROGRESS_STEPS.indexOf(progress);
   const step = Math.max(current, 0);
@@ -113,7 +123,7 @@ export function PlanProgress({ progress }: { progress: Progress }) {
     <div className="flex flex-col gap-3" role="status" aria-live="polite">
       <div className="flex items-center justify-between text-[12px] text-white/70">
         <span>
-          {t('plan.building')}
+          {t(updating ? 'plan.updating' : 'plan.building')}
           {progress !== 'done' && <span className="text-white/45"> · {t('plan.eta')}</span>}
         </span>
         <span className="tabular-nums">
@@ -214,23 +224,48 @@ export function PlanPanel({
 }) {
   const t = useT();
   const dayRefs = useRef<Record<number, HTMLElement | null>>({});
+  // Jump bar targets by id ("day-1", "cost", "checks") and the scrolling body they live in.
+  const sections = useRef<Record<string, HTMLElement | null>>({});
+  const body = useRef<HTMLDivElement | null>(null);
+  const [inView, setInView] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  function smooth(): ScrollBehavior {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+  }
+
+  // Whether the budget is in view (highlights its button), and whether the back-to-top button is worth showing.
+  function onScroll() {
+    const el = body.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + 8;
+    let current: string | null = null;
+    let best = -Infinity;
+    for (const [id, section] of Object.entries(sections.current)) {
+      const y = section?.getBoundingClientRect().top;
+      if (y != null && y <= top && y > best) {
+        best = y;
+        current = id;
+      }
+    }
+    setInView(current);
+    setScrolled(el.scrollTop > 400);
+  }
 
   // Picking a day drives the map; bring that day's part of the itinerary along with it.
   useEffect(() => {
     if (activeDay == null) return;
-    dayRefs.current[activeDay]?.scrollIntoView({
-      block: 'start',
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'instant'
-        : 'smooth',
-    });
+    dayRefs.current[activeDay]?.scrollIntoView({ block: 'start', behavior: smooth() });
   }, [activeDay]);
 
   if (trip?.status === 'planning') {
     return (
       <div className={BODY}>
         <div className="mt-5 rounded-xl bg-control p-4">
-          <PlanProgress progress={trip.progress ?? 'spots'} />
+          <PlanProgress
+            progress={trip.progress ?? 'spots'}
+            updating={Boolean(trip.currentPlanId)}
+          />
         </div>
         <div className={SKELETON} />
         <div className={SKELETON} />
@@ -243,10 +278,31 @@ export function PlanPanel({
   if (!plan) return <p className={`${BODY} ${STATE}`}>{t('plan.none')}</p>;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-transparent text-ink">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-transparent text-ink">
       <DayTabs days={plan.days} activeDay={activeDay} onDayChange={onDayChange} variant="inline" />
 
-      <div className={BODY}>
+      <div ref={body} className={BODY} onScroll={onScroll}>
+        {/* Budget: one tap from the top of the itinerary to the cost breakdown. */}
+        {plan.cost && (
+          <div className="flex justify-end pt-3">
+            <button
+              type="button"
+              className={[
+                'flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[13px] whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                inView === 'cost'
+                  ? 'border-ink bg-fill font-semibold text-ink'
+                  : 'border-line bg-surface text-muted-strong hover:bg-fill-soft',
+              ].join(' ')}
+              aria-current={inView === 'cost' ? 'location' : undefined}
+              onClick={() =>
+                sections.current.cost?.scrollIntoView({ block: 'start', behavior: smooth() })
+              }
+            >
+              <Wallet size={15} strokeWidth={2} aria-hidden="true" />
+              {t('plan.budget')}
+            </button>
+          </div>
+        )}
         {trip && <LanguageNote tripLanguage={trip.language} tone="light" />}
 
         {plan.subtitle && (
@@ -263,14 +319,28 @@ export function PlanPanel({
             onOpenShorts={onOpenShorts}
             sectionRef={(el) => {
               dayRefs.current[day.day] = el;
+              sections.current[`day-${day.day}`] = el;
             }}
           />
         ))}
 
-        {plan.cost && <CostSection cost={plan.cost} currency={plan.currency} />}
+        {plan.cost && (
+          <div
+            ref={(el) => {
+              sections.current.cost = el;
+            }}
+          >
+            <CostSection cost={plan.cost} currency={plan.currency} />
+          </div>
+        )}
 
         {plan.checks.length > 0 && (
-          <section className={SECTION}>
+          <section
+            className={SECTION}
+            ref={(el) => {
+              sections.current.checks = el;
+            }}
+          >
             <h3 className={EYEBROW}>
               {t('plan.checks')}
               <span className={WARN}>{t('plan.badge.pleaseCheck')}</span>
@@ -308,6 +378,17 @@ export function PlanPanel({
           </div>
         )}
       </div>
+
+      {scrolled && (
+        <button
+          type="button"
+          className="pop absolute right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-ink shadow-[0_6px_20px_rgba(0,0,0,0.18)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink desk:right-5"
+          aria-label={t('plan.toTop')}
+          onClick={() => body.current?.scrollTo({ top: 0, behavior: smooth() })}
+        >
+          <ArrowUp size={18} strokeWidth={2.2} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
@@ -462,7 +543,7 @@ function DaySection({
 function compactMoney(currency: string, amount: number, lang: string) {
   return new Intl.NumberFormat(lang, {
     style: 'currency',
-    currency,
+    currency: safeCurrency(currency),
     notation: 'compact',
     currencyDisplay: 'narrowSymbol',
     maximumFractionDigits: 1,

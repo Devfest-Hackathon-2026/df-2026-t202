@@ -67,7 +67,7 @@ Read the whole file before you write code. Follow the rules in section 2. They c
 
 ### 3.2 Stretch — only after the MVP works (in this order)
 
-1. F6 — Edit by chat ("make day 2 more relaxed"). Strong demo moment. Add first.
+1. ~~F6 — Edit by chat ("make day 2 more relaxed").~~ **Done** (8.4, D27).
 2. Editor share links and simple voting (F7).
 3. Plan versions and "revert".
 4. LINE preview cards (OGP) with SSR.
@@ -200,9 +200,11 @@ Cloud Run: Planner API (FastAPI + google-genai, Python)
 | Path | Fields |
 |---|---|
 | `users/{uid}` | `displayName`, `photoURL`, `language` (`"en"`/`"ja"`), `createdAt` |
-| `trips/{tripId}` | `ownerUid`, `members` (map uid → `"owner"`/`"viewer"`), `language`, `slots` (7.2), `asking` (current step key), `status` (`"chatting"`/`"planning"`/`"ready"`/`"error"`), `progress` (`"spots"`/`"routes"`/`"videos"`/`"done"`), `currentPlanId`, `shareId`, `messageCount` (messages written so far, for the per-trip limit), `createdAt`, `updatedAt` |
+| `users/{uid}/limits/{YYYY-MM-DD}` | `trips`, `plans` (counts for the day in JST, 9.6; server only) |
+| `usage/{YYYY-MM-DD}` | `plans` (whole app, 9.6; server only) |
+| `trips/{tripId}` | `ownerUid`, `members` (map uid → `"owner"`/`"viewer"`), `language`, `slots` (7.2), `asking` (current step key), `status` (`"chatting"`/`"planning"`/`"ready"`/`"error"`), `progress` (`"spots"`/`"routes"`/`"videos"`/`"done"`), `currentPlanId`, `pendingEdits` (plan requests typed after the plan exists, at most 10 × 300 chars; cleared by the next update, D27), `shareId`, `messageCount` (messages written so far, for the per-trip limit), `lastTextAt` (last free-text message, for the 2-second gap), `createdAt`, `updatedAt` |
 | `trips/{tripId}/messages/{msgId}` | `role` (`"user"`/`"ai"`), `text`, `answer` (card answer object or null), `ui` (card to show, AI messages only), `createdAt` |
-| `trips/{tripId}/plans/{planId}` | `version`, `plan` (7.3), `reason`, `createdAt` |
+| `trips/{tripId}/plans/{planId}` | `version`, `plan` (7.3), `slots` (snapshot of 7.2 the plan was made for; the next update compares against it), `reason` (`"initial"`/`"update"`), `createdAt` |
 | `shares/{shareId}` | `tripId`, `mode` (`"view"`), `active` (bool), `createdAt` |
 | `cache_places/{hash}` | `query`, `placeId`, `nameLocal`, `nameEn`, `nameJa`, `lat`, `lng`, `fetchedAt` |
 | `cache_videos/{placeId}` | `videoIds[]`, `fetchedAt` (reuse for 7 days) |
@@ -313,9 +315,19 @@ Rules:
 2. After an answer, close the card and keep the answer as a user chat bubble.
 3. Every card has "Not decided yet". This sets status `"skip"`. The AI fills it later.
 4. Free text can answer several steps at once. The Concierge extracts all of them. The step machine skips finished steps.
-5. If the answer is unclear, the AI asks back in one sentence (`clarify`).
+5. If the answer is unclear, the AI asks back in one sentence (`clarify`). Impossible requests (Mars, a budget of 0,
+   more than 20 days) get no update and a kind ask-back with a real alternative.
 6. Each AI reply may add one short useful tip about the destination.
 7. The right panel (S2) shows all slots. Tapping one asks that question again.
+8. Limits the server enforces on answers (`flow.py`): a trip is at most **20 days** (19 nights) and starts between
+   yesterday and about 2 years ahead; at least 1 adult, at most 20 people, at most 1 infant per adult and 4 children per adult; a budget is 1 or more (no budget = "Not decided yet"); a
+   destination must be found on the map (a card answer that isn't found is `400 place_not_found`). A rejected card
+   answer returns a code that says what to fix (`trip_too_long`, `date_in_past`, `date_too_far`, `budget_too_low`,
+   `adult_required`, `group_too_large`, `infant_needs_adult`, `too_many_children`, else `invalid_answer`), and the web shows a matching message. The date picker stays quiet until
+   an end date is too far out, then clears the dates and asks for 20 days or less. Card answers send
+   only a `label`: the server always looks the place up and ignores client place ids and coordinates.
+9. Destination card suggestions: "All of Kyushu" (the demo, opens its prefecture picker), then Kyoto, Seoul, Taipei,
+   Bangkok, Bali, Paris, New York.
 
 ### 8.3 Concierge agent (free text → structured updates)
 
@@ -331,8 +343,20 @@ Output (Pydantic-validated JSON):
 ```
 
 - `comment` and `clarify` are written in the trip language.
+- Two more optional fields: `edit` (a step key: the user wants to change that condition but gave no value) and
+  `planRequest` (a change to the plan that isn't a condition, e.g. "make day 2 more relaxed"). See 8.4.
 - The server merges `updates` into `slots`, then calls `next_step()`.
 - Destination text from the Concierge must be resolved with the Places API before it is saved.
+
+### 8.4 Editing after the plan exists (F6, D27)
+
+- In the plan-phase chat, the summary chips and the ready card's "Your trip" rows re-open that step's card
+  ("Changing {what}"). The answer is a normal card answer (`flow.can_answer` accepts done/skipped steps).
+- Typing works too. `edit` set → the server asks that step's card again (`asking = edit`), even though it is done.
+  `planRequest` set (only when `currentPlanId` exists) → appended to `trips.pendingEdits` in the same transaction,
+  and the ready card comes back. The LLM only says which condition; `flow.py` still picks the card.
+- With a plan, the ready card's button says **"Update the plan"** and lists the pending requests ("Your changes").
+  The reply is `TEXTS["rebuild"]`: "Got it. Tap “Update the plan” when you're ready."
 
 ---
 
@@ -346,9 +370,8 @@ Every request needs `Authorization: Bearer <Firebase ID token>` and `X-Firebase-
 |---|---|---|---|
 | POST | `/trips` | `{language, currency?}` | Create a trip. `currency` (ISO 4217, from the user's settings, default JPY in the web app) is saved as `slots.currency` and fixes the budget currency for the whole trip. Write the first AI message with the `dest` card. Return `{tripId}`. |
 | POST | `/trips/{id}/messages` | `{type:"answer", step, value}` or `{type:"text", text}` | Save the user message. Update slots (directly for answers, via Concierge for text). Write the AI reply with the next card. |
-| POST | `/trips/{id}/plan` | `{}` | Run the plan pipeline (9.3). Write progress to the trip doc. Save the plan. Return `{planId}`. |
+| POST | `/trips/{id}/plan` | `{}` | Run the plan pipeline (9.3). Write progress to the trip doc. Save the plan. Return `{planId}`. When the trip already has a plan, **update** it instead (9.3 "Updates", D27); an update counts as a plan generation. |
 | POST | `/trips/{id}/share` | `{}` | Create `shares/{shareId}` with a random 22+ character id. Return `{shareId}`. |
-| POST | `/trips/{id}/plan/edit` | `{text}` | **Stretch.** Editor agent revises the plan. |
 | GET | `/health` | — | Health check. `/healthz` also works locally, but Cloud Run reserves paths ending in `z`. |
 
 Answer examples:
@@ -391,6 +414,16 @@ Implementation notes:
 7. Set `progress = "videos"`. **Media** gets Shorts for each stop (9.4).
 8. Save `trips/{id}/plans/{planId}` (version 1). Set `currentPlanId`, `status = "ready"`, `progress = "done"`.
 
+**Updates (`pipeline.update`, D27).** When the trip has a plan, the server compares the plan's `slots` snapshot with
+the current slots ("Dates: … -> …", "Must-sees added: …") and adds `pendingEdits`. `planner.revise` (LOW thinking,
+60 s) returns only the changed days, plus `cost`/`checks` when they change (`PlanUpdate`, not stored).
+`planner.apply_update` swaps them in, sets every day's date from the slots, renumbers stop ids and carries over the
+verified place (placeId, coordinates, local name, videos) of stops whose name matches the old plan. Only changed days
+and days whose date moved are checked again: kept stops are looked up by place id, old real legs pre-fill the
+Routes memo, cached videos are reused, and the usual one repair round applies. Unchanged days make no Places, Routes
+or YouTube calls. Save with `reason: "update"` and clear `pendingEdits`. A full `run` is used instead when the
+destination changed, the old plan has no snapshot, the update leaves a day missing, or the Planner call fails early.
+
 Plan quality comes before speed: the Planner alone takes about 30 s, so a plan takes about 30–45 s (D4, D6). Run Places, Routes and YouTube calls in parallel (`asyncio.gather`) to keep the rest fast; the front end shows progress meanwhile.
 
 ### 9.4 YouTube Shorts
@@ -415,8 +448,21 @@ Plan quality comes before speed: the Planner alone takes about 30 s, so a plan t
 
 ### 9.6 Abuse limits
 
-- Max 20 plan generations per user per day (counter in Firestore).
-- Max 60 chat messages per trip (`trips.messageCount`, reserved in a transaction before the Gemini call).
+All counters are Firestore documents updated in transactions (D17, D21). Days are JST. Errors are HTTP 429 (403 for
+`share_full`) with the code in `detail`; the web shows a specific message for each.
+
+| Limit | Signed-in user | Guest (anonymous) | Code |
+| --- | --- | --- | --- |
+| Trips created per day | 10 | 3 | `trip_limit_reached` |
+| Plan generations per day (a plan that fails upstream is given back) | 10 | 3 | `plan_limit_reached` |
+| Plan generations per day, whole app | 200 | | `service_busy` |
+| Messages per trip (`trips.messageCount`, reserved before the Gemini call) | 40 | 40 | `message_limit_reached` |
+| Gap between free-text messages on a trip (`trips.lastTextAt`) | 2 s | 2 s | `too_fast` |
+| Members of a shared trip | 50 | | `share_full` |
+
+Also: request bodies over 16 KB get 413; chat text is at most 1000 characters; ids in paths must match
+`[A-Za-z0-9_-]{1,64}` (else 422); text with no letters or digits gets the fallback reply without a Gemini call.
+Cloud Run `--max-instances` caps scale-out (set at deploy).
 
 ---
 
@@ -429,7 +475,9 @@ map with a bottom sheet over it. The sheet has two tabs and three heights (peek 
 
 | Screen | Route | MVP? | Contents |
 |---|---|---|---|
-| S7 Start | `/` | Yes | Big "Where to, with whom?" input over the dusk-seascape photo, suggestion chips, language switch, account menu (trips list and sign out). |
+| S7 Start | `/` | Yes | Big "Where to, with whom?" input over the dusk-seascape photo, suggestion chips, language switch, account menu. |
+| Account menu | avatar, top right | Yes | Photo, name and email (guests: "Guest" badge + "Sign in with Google" that links the guest account, same uid). New trip, the 3 most recent trips (place, dates, status), "See all trips (N)", Settings (language, currency) as a sub-view, Sign out (D25). |
+| S8 My trips | `/trips` | Yes | All trips as cards: the destination's Places photo with its author credit, place, dates, status, "Shared with you". Loading, empty and error states (D25). |
 | S1 Chat | `/trips/[tripId]`, sheet tab "Chat" | Yes | Chat bubbles, the current question card, text input. |
 | S2 Plan summary | chips at the top of the sheet | Yes | One chip per answered slot. Tap to re-ask. |
 | S3 Trip page | `/trips/[tripId]`, sheet tab "Itinerary" | Yes | Day tabs, day theme and stats, timeline with legs, Shorts thumbnails, warnings, checks. The map behind shows the day's route. |
@@ -560,7 +608,7 @@ Owners: **FE** = front end, **BE** = back end, **INF** = infra and data, **DES**
 - [x] BE + FE: `POST /trips/{id}/share`, S6 shared page with anonymous login.
 - [x] FE: "Copy text for LINE", "Open in Google Maps".
 - [x] DES: Visual polish.
-- [ ] **Stretch only if all checks pass:** F6 edit by chat. (Not built: we chose plan quality and speed instead.)
+- [x] **Stretch:** F6 edit by chat: re-open cards from the chat, plan requests, "Update the plan" that re-checks only changed days (D27). Itinerary: a Budget button under the day tabs and a back-to-top button.
 - **Check:** a second phone opens the share link without login.
 
 ### Tue Nov 10 — afternoon: M5 Freeze and submit (12:00 → 18:00)

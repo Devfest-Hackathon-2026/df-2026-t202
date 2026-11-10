@@ -7,6 +7,8 @@
    the changed stops; a stop still not found is dropped with a note
 8. progress "videos": YouTube Shorts         9. cost check, save_plan -> planId
 On any error (or a cancelled request): status "error", then re-raise (the router turns it into an HTTP error).
+`update` (D27) changes an existing plan: the Planner revises only the days that must change, and only those days
+are checked again (cached and memoized lookups for stops that stay). It falls back to a full `run` when it can't.
 Plan quality comes before speed (D4); every API call inside a step runs in parallel. Repair rounds only start in the
 first FIX_BEFORE_S seconds, so draft + repair + APIs stay under the Cloud Run request timeout (300 s).
 """
@@ -25,9 +27,9 @@ from fastapi import HTTPException, status
 from google.cloud import firestore as gfs
 
 from app.agents import planner
-from app.models import Leg, Plan, Slots, Stop
+from app.models import Leg, Plan, PlanUpdate, Slots, Stop
 from app.services import firestore as fs
-from app.services import places, routes, youtube
+from app.services import llm, places, routes, youtube
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +41,7 @@ TRANSIT_WALK_KM = 2.0  # no transit route (Routes has no transit data for Japan)
 MAX_WALK_MINUTES = 30  # a longer walk becomes a ride (a 3-hour "walk" between two towns is not a plan)
 DAY_END = 23 * 60 + 55  # re-timed stops stay on the same day
 MAX_FROM_GUESS_KM = 30.0  # a Places match farther than this from the Planner's rough location is wrong (D8)
+REBUILD_BEFORE_S = 60  # an update whose Planner call failed falls back to a full run only this early (D27)
 STALE_PLANNING = timedelta(minutes=10)  # a "planning" status older than this is a crashed run, not a running one
 YOUTUBE_PARALLEL = 4  # more at once and YouTube answers 429 "too many requests" (D11)
 NO_VIDEO_KINDS = {"start", "end", "transport"}  # stations, ports, rental cars: weak videos
@@ -417,21 +420,32 @@ async def _check(plan: Plan, run: Run) -> tuple[list[str], int]:
     return add_warnings(plan, run)
 
 
-async def run(trip_id: str) -> str:
+def _new_run(lang: str, slots: Slots) -> Run:
+    dest = slots.dest
+    return Run(
+        lang=lang,
+        near=(dest.lat, dest.lng) if dest and dest.lat is not None else None,
+        country=dest.countryCode if dest else None,
+        default_mode=next((TRANSPORT_MODE[t] for t in slots.transport if t in TRANSPORT_MODE), "DRIVE"),
+    )
+
+
+async def _failed(trip_id: str, e: BaseException) -> None:
+    log.warning(json.dumps({"msg": "plan_failed", "tripId": trip_id, "err": type(e).__name__}))
+    try:
+        await fs.update_trip(trip_id, {"status": "error", "progress": None})
+    except Exception:  # keep the original error
+        log.warning(json.dumps({"msg": "plan_status_reset_failed", "tripId": trip_id}))
+
+
+async def run(trip_id: str, reason: str = "initial") -> str:
     """Run the pipeline for a claimed trip and return the saved planId. Sets status "error" on failure."""
     started, stage = time.perf_counter(), {}
     try:
         trip = await fs.get_trip(trip_id) or {}
         lang = trip.get("language", "en")
         slots = Slots.model_validate(trip.get("slots") or {})
-        dest = slots.dest
-        mode = next((TRANSPORT_MODE[t] for t in slots.transport if t in TRANSPORT_MODE), "DRIVE")
-        r = Run(
-            lang=lang,
-            near=(dest.lat, dest.lng) if dest and dest.lat is not None else None,
-            country=dest.countryCode if dest else None,
-            default_mode=mode,
-        )
+        r = _new_run(lang, slots)
 
         plan = await planner.draft(slots, await fs.list_messages(trip_id), lang)
         stage["draft"] = time.perf_counter() - started
@@ -455,17 +469,13 @@ async def run(trip_id: str) -> str:
         stage["videos"] = time.perf_counter() - started
 
         check_cost(plan, slots, r)
-        plan_id = await fs.save_plan(trip_id, plan)
+        plan_id = await fs.save_plan(trip_id, plan, reason, slots=slots.model_dump(mode="json"))
         log.info(
             json.dumps({"msg": "plan_done", "tripId": trip_id, "seconds": {k: round(v, 1) for k, v in stage.items()}})
         )
         return plan_id
     except (Exception, asyncio.CancelledError) as e:  # a cancelled request must not leave the trip "planning"
-        log.warning(json.dumps({"msg": "plan_failed", "tripId": trip_id, "err": type(e).__name__}))
-        try:
-            await fs.update_trip(trip_id, {"status": "error", "progress": None})
-        except Exception:  # keep the original error
-            log.warning(json.dumps({"msg": "plan_status_reset_failed", "tripId": trip_id}))
+        await _failed(trip_id, e)
         raise
 
 
@@ -473,3 +483,122 @@ def _ask(day: int, stop: Stop, run: Run) -> str:
     if stop.id in run.lodging:
         return run.text("lodging", day=day, name=stop.name)
     return run.text("missing", day=day, name=stop.name, country=run.country or "the destination")
+
+
+# ---------- Update an existing plan (D27) ----------
+
+
+async def update(trip_id: str) -> str:
+    """Update the trip's current plan for the changed conditions and pendingEdits, and return the new planId.
+
+    Falls back to a full `run` when the destination changed, the old plan has no slots snapshot, or the Planner's
+    update has a gap (or failed early). Sets status "error" on failure."""
+    started = time.perf_counter()
+    try:
+        plan_id = await _update(trip_id, started)
+    except (Exception, asyncio.CancelledError) as e:
+        await _failed(trip_id, e)
+        raise
+    return plan_id or await run(trip_id, reason="update")
+
+
+def _dest_key(slots: Slots) -> str | None:
+    return (slots.dest.placeId or slots.dest.label.strip().lower()) if slots.dest else None
+
+
+def _rebuild(trip_id: str, why: str) -> None:
+    log.info(json.dumps({"msg": "plan_update_rebuild", "tripId": trip_id, "why": why}))
+
+
+def _known_legs(plan: Plan, run: Run) -> None:
+    """Real legs of the old plan go into the Routes memo: the same two places and mode give the same route."""
+    for day in plan.days:
+        for a, b in zip(day.stops, day.stops[1:], strict=False):
+            leg = a.leg
+            if leg and not leg.estimate and leg.polyline and None not in (a.lat, a.lng, b.lat, b.lng):
+                run.legs[(a.lat, a.lng, b.lat, b.lng, leg.mode)] = {
+                    "minutes": leg.minutes,
+                    "polyline": leg.polyline,
+                    "line": leg.line,
+                }
+
+
+async def _known_places(plan: Plan, run: Run) -> None:
+    """Stops kept from the old plan already have a placeId: look them up by id (no text search)."""
+    ids = {s.nameLocal or s.name: s.placeId for day in plan.days for s in day.stops if s.placeId}
+    ids = {query: pid for query, pid in ids.items() if query not in run.places}
+    found = await asyncio.gather(*(places.by_id(pid, run.lang) for pid in ids.values()))
+    run.places.update(zip(ids, found, strict=True))
+
+
+def _put_back(plan: Plan, sub: Plan) -> None:
+    """Replace the plan's days by the sub-plan's days with the same number (after a repair round)."""
+    by_day = {day.day: day for day in sub.days}
+    plan.days = [by_day.get(day.day, day) for day in plan.days]
+
+
+async def _update(trip_id: str, started: float) -> str | None:
+    """The update itself. Returns None when the whole plan should be rebuilt instead."""
+    trip = await fs.get_trip(trip_id) or {}
+    lang = trip.get("language", "en")
+    slots = Slots.model_validate(trip.get("slots") or {})
+    doc = await fs.get_plan(trip_id, trip["currentPlanId"]) if trip.get("currentPlanId") else None
+    if not doc or not doc.get("slots"):
+        return _rebuild(trip_id, "no_snapshot")
+    old_slots = Slots.model_validate(doc["slots"])
+    if _dest_key(old_slots) != _dest_key(slots):
+        return _rebuild(trip_id, "dest_changed")
+    old = Plan.model_validate(doc["plan"])
+    change_lines = planner.changes(old_slots, slots)
+    requests = [str(x) for x in trip.get("pendingEdits") or []]
+
+    out = PlanUpdate(days=[])  # nothing changed: save the same plan again
+    if change_lines or requests:
+        try:
+            out = await planner.revise(old, change_lines, requests, slots, lang)
+        except llm.LLMError:
+            if time.perf_counter() - started < REBUILD_BEFORE_S:
+                return _rebuild(trip_id, "planner_failed")
+            raise
+    merged = planner.apply_update(old, out, slots, lang)
+    if merged is None:
+        return _rebuild(trip_id, "missing_day")
+    plan, changed = merged
+    old_dates = {day.day: day.date for day in old.days}
+    moved = {day.day for day in plan.days if day.date != old_dates.get(day.day)}  # opening hours depend on the date
+    redo = changed | moved
+
+    r = _new_run(lang, slots)
+    _known_legs(old, r)
+    sub = plan.model_copy(update={"days": [day for day in plan.days if day.day in redo]})  # shares Day/Stop objects
+    if sub.days:
+        await _known_places(sub, r)
+        missing = await verify(sub, r)
+        await fs.update_trip(trip_id, {"progress": "routes"})
+        warnings, closed = await _check(_without(sub, missing), r)
+        if (missing or len(warnings) >= FIX_AT_WARNINGS or closed) and time.perf_counter() - started < FIX_BEFORE_S:
+            sub = await planner.fix(sub, [*(_ask(d, s, r) for d, s in missing), *warnings], lang)
+            _put_back(plan, sub)
+            missing = await verify(sub, r)
+        drop(sub, missing, r)
+        plan.days = [day for day in plan.days if day.stops]
+        plan.checks = sub.checks
+        await _check(sub, r)
+        await fs.update_trip(trip_id, {"progress": "videos"})
+        await add_videos(sub, r)
+    else:
+        await fs.update_trip(trip_id, {"progress": "videos"})
+
+    check_cost(plan, slots, r)
+    plan_id = await fs.save_plan(trip_id, plan, "update", slots=slots.model_dump(mode="json"))
+    log.info(
+        json.dumps(
+            {
+                "msg": "plan_updated",
+                "tripId": trip_id,
+                "days": sorted(redo),
+                "seconds": round(time.perf_counter() - started, 1),
+            }
+        )
+    )
+    return plan_id

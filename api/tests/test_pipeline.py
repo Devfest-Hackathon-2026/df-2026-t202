@@ -5,7 +5,7 @@ from datetime import date
 
 from app import pipeline
 from app.agents import planner
-from app.models import Day, Leg, Plan, Stop
+from app.models import Cost, Day, DayFix, Leg, Plan, PlanUpdate, Stop
 from app.services import firestore as fs
 from app.services import places, routes, youtube
 
@@ -74,7 +74,7 @@ def fake_world(monkeypatch, replace_with=None):
         if "status" in data:
             log["status"].append(data["status"])
 
-    async def save_plan(trip_id, plan, reason="initial"):
+    async def save_plan(trip_id, plan, reason="initial", slots=None):
         log["saved"] = plan
         return "plan-1"
 
@@ -595,3 +595,195 @@ def test_budget_check_when_the_estimate_may_exceed_it():
     plan.cost.max = 40000
     pipeline.check_cost(plan, slots, ja)
     assert plan.checks[0].startswith("見積もり（最大40,000 JPY）がご予算（30,000 JPY）を超える")
+
+
+# ---------- Plan updates (D27) ----------
+
+UPDATE_SLOTS = {
+    "dest": {**KYUSHU, "placeId": "p-kyushu"},
+    "transport": ["car"],
+    "dates": {"start": "2027-03-10", "end": "2027-03-11"},
+    "budget": {"basis": "person", "amount": 50000, "currency": "JPY"},
+}
+ASO = {"placeId": "p-aso", "name": "Aso Shrine", "lat": 32.94, "lng": 131.12, "countryCode": "JP"}
+BY_ID = {p["placeId"]: p for p in [*PLACES.values(), ASO]}
+
+
+def verified(sid, time, name, place, leg=None):
+    return Stop(
+        id=sid,
+        time=time,
+        name=name,
+        nameLocal=name,
+        placeId=place["placeId"],
+        lat=place["lat"],
+        lng=place["lng"],
+        videoIds=[f"vid-{place['placeId']}"],
+        leg=leg,
+    )
+
+
+def saved_plan():
+    """A 2-day plan as the pipeline saved it: real places and legs."""
+    real = Leg(mode="DRIVE", minutes=50, polyline="abc")
+    walk = Leg(mode="WALK", minutes=10, polyline="abc")  # gorge -> restaurant is under 1 km
+    return Plan(
+        title="Test",
+        language="en",
+        days=[
+            Day(
+                day=1,
+                date="2027-03-10",
+                stops=[
+                    verified("s-101", "09:00", "Takachiho Gorge", PLACES["高千穂峡"], walk),
+                    verified("s-102", "10:00", "Chiho no Ie", PLACES["千穂の家"]),
+                ],
+            ),
+            Day(
+                day=2,
+                date="2027-03-11",
+                stops=[
+                    verified("s-201", "09:00", "Kurokawa Onsen", PLACES["Kurokawa Onsen"], real),
+                    verified("s-202", "11:00", "Takachiho Gorge", PLACES["高千穂峡"]),
+                ],
+            ),
+        ],
+    )
+
+
+def update_world(monkeypatch, slots, snapshot=UPDATE_SLOTS, out=None, pending=None):
+    log = {"search": [], "by_id": [], "routes": [], "videos": [], "revise": [], "run": [], "saved": None}
+    old = saved_plan()
+
+    async def get_trip(trip_id):
+        return {"language": "en", "slots": slots, "currentPlanId": "plan-0", "pendingEdits": pending or []}
+
+    async def get_plan(trip_id, plan_id):
+        doc = {"plan": old.model_dump(mode="json"), "version": 1}
+        return {**doc, "slots": snapshot} if snapshot else doc
+
+    async def update_trip(trip_id, data):
+        pass
+
+    async def save_plan(trip_id, plan, reason="initial", slots=None):
+        log["saved"], log["reason"], log["snapshot"] = plan, reason, slots
+        return "plan-2"
+
+    async def revise(plan, changes, requests, slots, lang):
+        log["revise"].append((changes, requests))
+        return out or PlanUpdate(days=[])
+
+    async def search_text(query, lang, near=None):
+        log["search"].append(query)
+        return {**PLACES, "Aso Shrine": ASO}.get(query)
+
+    async def by_id(place_id, lang):
+        log["by_id"].append(place_id)
+        return BY_ID.get(place_id)
+
+    async def leg(a, b, mode, lang):
+        log["routes"].append((a, b))
+        return {"minutes": 40, "polyline": "new"}
+
+    async def cached(place_id):
+        return None if place_id == "p-aso" else [f"vid-{place_id}"]
+
+    async def shorts_for(place_id, *args, **kw):
+        log["videos"].append(place_id)
+        return [f"vid-{place_id}"]
+
+    async def local_name(place_id, country):
+        return None
+
+    async def fix(plan, warnings, lang):
+        log.setdefault("fix", []).append(warnings)
+        return plan.model_copy(deep=True)
+
+    async def full_run(trip_id, reason="initial"):
+        log["run"].append(reason)
+        return "plan-full"
+
+    for target, name, fn in [
+        (fs, "get_trip", get_trip),
+        (fs, "get_plan", get_plan),
+        (fs, "update_trip", update_trip),
+        (fs, "save_plan", save_plan),
+        (planner, "revise", revise),
+        (planner, "fix", fix),
+        (places, "search_text", search_text),
+        (places, "by_id", by_id),
+        (places, "local_name", local_name),
+        (routes, "leg", leg),
+        (youtube, "cached", cached),
+        (youtube, "shorts_for", shorts_for),
+        (pipeline, "run", full_run),
+    ]:
+        monkeypatch.setattr(target, name, fn)
+    return log, old
+
+
+def test_budget_only_update_checks_nothing_again(monkeypatch):
+    slots = {**UPDATE_SLOTS, "budget": {"basis": "person", "amount": 80000, "currency": "JPY"}}
+    log, old = update_world(monkeypatch, slots, out=PlanUpdate(days=[], cost=Cost(min=60000, max=70000)))
+
+    assert asyncio.run(pipeline.update("t1")) == "plan-2"
+
+    assert log["revise"][0][0][0].startswith("Budget: ")
+    assert log["search"] == log["by_id"] == log["routes"] == log["videos"] == [] and log["run"] == []
+    assert log["saved"].days == old.days and log["saved"].cost.max == 70000
+    assert log["reason"] == "update" and log["snapshot"]["budget"]["amount"] == 80000
+
+
+def test_one_day_update_checks_only_that_day(monkeypatch):
+    kept = saved_plan().days[1].stops[0].model_copy(update={"placeId": None, "videoIds": []})
+    aso = Stop(id="x", time="11:00", name="Aso Shrine", lat=32.94, lng=131.12)
+    out = PlanUpdate(days=[DayFix(day=2, stops=[kept, aso])])
+    log, old = update_world(monkeypatch, UPDATE_SLOTS, out=out, pending=["make day 2 calmer"])
+
+    asyncio.run(pipeline.update("t1"))
+
+    assert log["revise"] == [([], ["make day 2 calmer"])]
+    assert log["search"] == ["Aso Shrine"]  # only the new stop is searched
+    assert log["by_id"] == ["p-onsen"]  # the kept stop is looked up by id, day 1 not at all
+    assert len(log["routes"]) == 1  # onsen -> shrine; day 1's leg is never asked again
+    assert log["videos"] == ["p-aso"]
+    plan = log["saved"]
+    assert plan.days[0] == old.days[0]
+    assert [(s.name, s.placeId) for s in plan.days[1].stops] == [("Kurokawa Onsen", "p-onsen"), ("Aso Shrine", "p-aso")]
+    assert plan.days[1].stops[0].leg.polyline == "new" and plan.days[1].stops[1].leg is None
+
+
+def test_date_shift_reuses_every_route(monkeypatch):
+    slots = {**UPDATE_SLOTS, "dates": {"start": "2027-03-17", "end": "2027-03-18"}}  # a week later, same weekdays
+    log, _ = update_world(monkeypatch, slots)
+    asyncio.run(pipeline.update("t1"))
+    assert [d.date for d in log["saved"].days] == ["2027-03-17", "2027-03-18"]
+    assert sorted(log["by_id"]) == ["p-food", "p-gorge", "p-onsen"]  # opening hours for the new dates
+    assert log["routes"] == [] and log["search"] == [] and "fix" not in log  # routes come from the old plan
+
+
+def test_date_shift_onto_a_closed_day_repairs_it(monkeypatch):
+    slots = {**UPDATE_SLOTS, "dates": {"start": "2027-03-12", "end": "2027-03-13"}}  # Friday: the restaurant is shut
+    log, _ = update_world(monkeypatch, slots)
+    asyncio.run(pipeline.update("t1"))
+    assert "Chiho no Ie" in log["fix"][0][0] and "May be closed" in log["fix"][0][0]
+
+
+def test_destination_change_rebuilds_the_whole_plan(monkeypatch):
+    slots = {**UPDATE_SLOTS, "dest": {"label": "Hokkaido", "placeId": "p-hokkaido", "countryCode": "JP"}}
+    log, _ = update_world(monkeypatch, slots)
+    assert asyncio.run(pipeline.update("t1")) == "plan-full"
+    assert log["run"] == ["update"] and log["revise"] == []
+
+
+def test_plan_without_a_snapshot_rebuilds_the_whole_plan(monkeypatch):
+    log, _ = update_world(monkeypatch, UPDATE_SLOTS, snapshot=None)
+    assert asyncio.run(pipeline.update("t1")) == "plan-full"
+    assert log["run"] == ["update"] and log["revise"] == []
+
+
+def test_update_with_a_missing_day_rebuilds_the_whole_plan(monkeypatch):
+    slots = {**UPDATE_SLOTS, "dates": {"start": "2027-03-10", "end": "2027-03-12"}}  # 3 days, no day 3 returned
+    log, _ = update_world(monkeypatch, slots)
+    assert asyncio.run(pipeline.update("t1")) == "plan-full"
+    assert log["saved"] is None

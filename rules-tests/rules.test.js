@@ -34,6 +34,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'shares/off1'), { tripId: 't1', active: false });
     await setDoc(doc(db, 'cache_places/k'), { placeId: 'x' });
     await setDoc(doc(db, `users/${OWNER}/limits/2026-11-08`), { plans: 1 });
+    await setDoc(doc(db, 'usage/2026-11-08'), { plans: 1 });
   });
 });
 
@@ -102,5 +103,9 @@ describe('caches', () => {
   it('no client access', async () => {
     await assertFails(getDoc(doc(as(OWNER), 'cache_places/k')));
     await assertFails(setDoc(doc(as(OWNER), 'cache_videos/k'), { videoIds: [] }));
+  });
+  it('the app-wide usage counter is server-only', async () => {
+    await assertFails(getDoc(doc(as(OWNER), 'usage/2026-11-08')));
+    await assertFails(setDoc(doc(as(OWNER), 'usage/2026-11-08'), { plans: 0 }));
   });
 });

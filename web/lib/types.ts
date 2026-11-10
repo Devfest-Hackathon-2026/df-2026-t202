@@ -73,6 +73,8 @@ export interface Trip {
   status: TripStatus;
   progress?: Progress | null;
   currentPlanId?: string | null;
+  /** Plan requests from the chat ("make day 2 more relaxed"), applied by the next update (D27). */
+  pendingEdits?: string[];
   shareId?: string | null;
   messageCount?: number;
 }

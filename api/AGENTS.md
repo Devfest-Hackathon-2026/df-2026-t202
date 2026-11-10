@@ -22,7 +22,7 @@ app/agents/concierge.py ✅ (A) run(): free text → ConciergeOutput via llm.gen
 app/agents/planner.py  ✅ (B) slots + chat → draft Plan; fix() → PlanFix (changed days only, D6)
 app/services/firestore.py ✅ (A) async helpers: db, now, get_trip, update_trip, list_messages, add_message, save_plan, cache_get, cache_set
 app/services/llm.py    ✅ (A) generate_json, MODEL_FAST, MODEL_PLANNER, LLMError
-app/services/limits.py ✅ (A) check_plan_limit (per user per day), check_message_limit (per trip)
+app/services/limits.py ✅ (A) check_trip_limit, check_plan_limit/refund_plan (per user and app per day), check_message_limit, reserve_messages (per trip)
 app/services/places.py ✅ (B) Text Search / Place Details + cache_places
 app/services/routes.py ✅ (B) computeRoutes per leg
 app/services/youtube.py ✅ (B) search.list + cache_videos (7 days)
@@ -46,7 +46,8 @@ from app.services import llm
 async def generate_json[T: BaseModel](model: str, system: str, user: str, schema: type[T],
                                       tools: list | None = None, thinking: str | None = None) -> T  # raises llm.LLMError
 from app.services.limits import check_plan_limit
-async def check_plan_limit(uid: str) -> None               # 429 plan_limit_reached
+async def check_plan_limit(account: Account) -> str        # 429 plan_limit_reached / service_busy; returns the day
+async def refund_plan(uid: str, day: str) -> None           # give back a plan that failed upstream
 ```
 Use `llm.MODEL_PLANNER` for the Planner and `llm.MODEL_FAST` for small calls.
 

@@ -8,7 +8,7 @@ import { LanguageSwitch } from '@/components/language-switch';
 import { Spinner } from '@/components/page-loader';
 import { SignInCard } from '@/components/sign-in-card';
 import { UserMenu } from '@/components/user-menu';
-import { post } from '@/lib/api';
+import { MAX_TEXT_LENGTH, errorKey, post } from '@/lib/api';
 import { getCurrency } from '@/lib/currency';
 import { handOffFirstMessage } from '@/lib/first-message';
 import { useAuthUser } from '@/lib/auth';
@@ -39,7 +39,7 @@ export default function HomePage() {
   const { trips, loading: tripsLoading } = useMyTrips(user?.uid);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null); // i18n key of the error
   const [nudge, setNudge] = useState(false);
   const [launching, setLaunching] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -61,14 +61,14 @@ export default function HomePage() {
    */
   async function start(first?: string) {
     setBusy(true);
-    setFailed(false);
+    setFailed(null);
     try {
       const trip = await post<{ tripId: string }>('/trips', { language, currency: getCurrency() });
       const message = (first ?? text).trim();
       if (message) handOffFirstMessage(trip.tripId, message);
       router.push(`/trips/${trip.tripId}`);
-    } catch {
-      setFailed(true);
+    } catch (e) {
+      setFailed(errorKey(e));
       setBusy(false);
       setLaunching(false);
     }
@@ -76,7 +76,7 @@ export default function HomePage() {
 
   return (
     <main className="relative flex h-[100svh] flex-col overflow-hidden bg-[url('/dusk.webp')] bg-cover bg-[position:50%_45%]">
-      <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
+      <div className="relative z-40 flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
         {!loading && !user ? (
           <span className="text-[22px] font-bold tracking-[-0.02em] text-white [text-shadow:0_1px_16px_rgba(4,12,26,0.35)]">
             {t('app.name')}
@@ -111,6 +111,7 @@ export default function HomePage() {
                   ref={inputRef}
                   className={INPUT}
                   rows={2}
+                  maxLength={MAX_TEXT_LENGTH}
                   value={text}
                   placeholder={t('home.prompt')}
                   aria-label={t('home.prompt')}
@@ -183,7 +184,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {failed && <p className={`${STATE} text-accent`}>{t('state.sendFailed')}</p>}
+        {failed && <p className={`${STATE} text-accent`}>{t(failed)}</p>}
       </div>
     </main>
   );

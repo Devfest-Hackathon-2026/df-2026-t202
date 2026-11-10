@@ -2,7 +2,8 @@
 
 import {
   GoogleAuthProvider,
-  onAuthStateChanged,
+  linkWithPopup,
+  onIdTokenChanged,
   signInAnonymously,
   signInWithPopup,
   signOut,
@@ -18,7 +19,9 @@ export function useAuthUser(): AuthState {
   const [state, setState] = useState<AuthState>({ user: null, loading: true });
 
   useEffect(() => {
-    return onAuthStateChanged(auth(), (user) => {
+    // Token changes include sign-in, sign-out and a guest becoming a Google user (same uid,
+    // new token), so the menu updates after linking.
+    return onIdTokenChanged(auth(), (user) => {
       // Local development skips the sign-in screen: a guest session starts by itself.
       if (!user && isLocalhost()) {
         // If guest sign-in is off for the project, fall back to the normal sign-in screen.
@@ -46,6 +49,24 @@ export function signInWithGoogle() {
 export function signInAsGuest() {
   guestSignIn ??= signInAnonymously(auth()).finally(() => (guestSignIn = null));
   return guestSignIn;
+}
+
+/**
+ * Turn the guest account into a Google account. The uid stays the same, so the guest's trips and
+ * limits carry over. Resolves "exists" when that Google account is already a Tripi user (Firebase
+ * can't merge two accounts); the caller then offers to sign in to it instead.
+ */
+export async function linkGuestWithGoogle(): Promise<'linked' | 'exists'> {
+  const user = auth().currentUser;
+  if (!user) throw new Error('not_signed_in');
+  try {
+    await linkWithPopup(user, new GoogleAuthProvider());
+    await user.reload(); // pick up the Google name and photo
+    return 'linked';
+  } catch (e) {
+    if ((e as { code?: string }).code === 'auth/credential-already-in-use') return 'exists';
+    throw e;
+  }
 }
 
 export function signOutUser() {

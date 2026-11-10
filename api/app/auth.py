@@ -6,6 +6,7 @@ Every endpoint except /health and /healthz needs:
 """
 
 import asyncio
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -15,8 +16,14 @@ from app.config import get_settings
 from app.services.firestore import firebase_app, get_trip
 
 
-async def require_user(request: Request) -> str:
-    """FastAPI dependency: returns the caller's uid, else HTTP 401."""
+@dataclass(frozen=True)
+class Account:
+    uid: str
+    guest: bool  # anonymous sign-in: lower daily limits (PLAN.md 9.6)
+
+
+async def _verify(request: Request) -> Account:
+    """Check the App Check token and the ID token. HTTP 401 if either is missing or invalid."""
     app = firebase_app()
 
     if not get_settings().skip_appcheck:
@@ -36,7 +43,18 @@ async def require_user(request: Request) -> str:
         decoded = await asyncio.to_thread(auth.verify_id_token, header.removeprefix("Bearer "), app)
     except Exception:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_token") from None
-    return decoded["uid"]
+    provider = (decoded.get("firebase") or {}).get("sign_in_provider")
+    return Account(uid=decoded["uid"], guest=provider == "anonymous")
+
+
+async def require_account(request: Request) -> Account:
+    """FastAPI dependency: the caller's uid and whether it is a guest, else HTTP 401."""
+    return await _verify(request)
+
+
+async def require_user(request: Request) -> str:
+    """FastAPI dependency: returns the caller's uid, else HTTP 401."""
+    return (await _verify(request)).uid
 
 
 async def require_member(trip_id: str, uid: str) -> dict:
@@ -56,5 +74,9 @@ async def require_owner(trip_id: str, uid: str) -> dict:
     return trip
 
 
-# Use in a route: `async def handler(uid: User): ...`
+# Use in a route: `async def handler(uid: User): ...` (or `account: CurrentAccount` when limits depend on guest)
 User = Annotated[str, Depends(require_user)]
+CurrentAccount = Annotated[Account, Depends(require_account)]
+
+# Firestore document ids we create: auto ids (20 chars) and share ids (22 chars). Anything else is a 422, not a 500.
+ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"

@@ -116,7 +116,8 @@
       "nextMonth": "次の月",
       "pickStart": "出発日を選択",
       "pickEnd": "帰る日を選択",
-      "dayTrip": "日帰り"
+      "dayTrip": "日帰り",
+      "tooLong": "{max}日以内で選んでください。"
     },
     "people": {
       "adult": "大人",
@@ -126,7 +127,11 @@
       "infant": "乳幼児",
       "infantSub": "2歳未満",
       "decrease": "{what}を減らす",
-      "increase": "{what}を増やす"
+      "increase": "{what}を増やす",
+      "adultRequired": "大人が1人以上必要です。",
+      "groupTooLarge": "人数は最大{max}人までです。",
+      "infantNeedsAdult": "乳幼児1人につき大人1人が必要です。先に大人を追加してください。",
+      "tooManyChildren": "子どもは大人1人につき{max}人までです。先に大人を追加してください。"
     },
     "budget": {
       "label": "予算",
@@ -159,14 +164,16 @@
       "infant": "乳幼児{n}人",
       "infantOne": "乳幼児1人",
       "person": "(1人あたり)",
-      "total": "(合計)"
+      "total": "(合計)",
+      "changes": "変更のリクエスト"
     },
     "transport": {
       "startTitle": "旅はどこから始まりますか？",
       "startHint": "空港・駅・ホテルなら1日目はそこから。都市名やエリアだけなら、最初の観光地から始めます。",
       "startPlaceholder": "例：福岡空港、博多駅",
       "notDecided": "まだ決めていない"
-    }
+    },
+    "update": "プランを更新"
   },
   "transport": {
     "shinkansen": "新幹線",
@@ -222,7 +229,11 @@
       "routes": "スポット間の車・電車・フェリーの時間",
       "videos": "スポットごとのYouTubeショート"
     },
-    "stopsCount": "{n}か所"
+    "stopsCount": "{n}か所",
+    "updating": "プランを更新中",
+    "updatingNow": "プランを更新しています…",
+    "budget": "予算",
+    "toTop": "トップに戻る"
   },
   "share": {
     "title": "共有された旅行",
@@ -274,7 +285,8 @@
   "dest": {
     "kyushu": {
       "name": "九州ぐるっと",
-      "sub": "7県をめぐる"
+      "sub": "7県をめぐる",
+      "query": "九州"
     },
     "fukuoka": {
       "name": "福岡",
@@ -303,6 +315,76 @@
     "saga": {
       "name": "佐賀",
       "sub": "呼子・嬉野"
+    },
+    "kyoto": {
+      "name": "京都",
+      "sub": "寺社めぐり・嵐山"
+    },
+    "seoul": {
+      "name": "ソウル",
+      "sub": "王宮・屋台グルメ"
+    },
+    "taipei": {
+      "name": "台北",
+      "sub": "夜市・九份"
+    },
+    "bangkok": {
+      "name": "バンコク",
+      "sub": "寺院・水上ボート"
+    },
+    "bali": {
+      "name": "バリ島",
+      "sub": "棚田・ビーチ"
+    },
+    "paris": {
+      "name": "パリ",
+      "sub": "美術館・カフェ"
+    },
+    "newyork": {
+      "name": "ニューヨーク",
+      "sub": "摩天楼・セントラルパーク"
     }
+  },
+  "error": {
+    "trip_limit_reached": "今日はたくさんの旅を作成しました。作成済みの旅を続けるか、明日またお試しください。",
+    "plan_limit_reached": "今日作れるプランの上限に達しました。旅は保存されています。明日またお試しください。",
+    "message_limit_reached": "このチャットは上限に達しました。カードで回答を変更するか、新しい旅を始めてください。",
+    "service_busy": "本日は大変混み合っています。明日またお試しください。",
+    "too_fast": "少々お待ちください。前のメッセージを読んでいます。",
+    "place_not_found": "その場所が地図で見つかりませんでした。都市名や地域名でお試しください。",
+    "share_full": "この共有プランは閲覧人数の上限に達しました。作成者にプランを確認してください。",
+    "pageTitle": "問題が発生しました",
+    "pageBody": "ページを再読み込みしてください。旅は保存されています。",
+    "reload": "再読み込み",
+    "trip_too_long": "旅行は最長20日までです。期間を短くしてください。",
+    "date_in_past": "過ぎた日付は選べません。今日以降の日付を選んでください。",
+    "date_too_far": "出発日は2年以内の日付を選んでください。",
+    "budget_too_low": "0より大きい予算を設定するか、「まだ決めていない」を選んでください。",
+    "adult_required": "大人を1人以上含めてください。",
+    "group_too_large": "人数は最大20人までです。人数を減らしてください。",
+    "infant_needs_adult": "乳幼児1人につき大人1人が必要です。大人を追加してください。",
+    "too_many_children": "子どもは大人1人につき4人までです。大人を追加してください。"
+  },
+  "menu": {
+    "guest": "ゲスト",
+    "guestSub": "旅はこの端末に保存されています",
+    "guestNudge": "Googleでログインすると、どの端末でも旅を続けられ、1日に作れるプランも増えます。",
+    "signInGoogle": "Googleでログイン",
+    "accountExists": "このGoogleアカウントはすでにTripiで使われています。ログインするとそのアカウントの旅が表示されます（ゲストで作った旅はゲストに残ります）。",
+    "signInExisting": "そのアカウントでログイン",
+    "linkFailed": "ログインが完了しませんでした。もう一度お試しください。",
+    "recent": "最近の旅",
+    "seeAll": "すべての旅を見る（{n}件）",
+    "settings": "設定"
+  },
+  "tripsPage": {
+    "home": "ホーム",
+    "count": "{n}件の旅",
+    "emptyTitle": "まだ旅がありません",
+    "emptyBody": "行きたい場所をTripiに伝えると、ここに旅が表示されます。",
+    "error": "旅を読み込めませんでした。ページを再読み込みしてください。",
+    "datesNotSet": "日程未定",
+    "shared": "共有された旅",
+    "countOne": "1件の旅"
   }
 }

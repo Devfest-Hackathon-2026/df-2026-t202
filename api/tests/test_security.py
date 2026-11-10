@@ -60,3 +60,33 @@ def test_production_refuses_unsafe_env(monkeypatch, env):
             config.get_settings()
     finally:
         config.get_settings.cache_clear()
+
+
+def test_oversized_body_is_413():
+    import asyncio
+
+    import httpx
+
+    from app.main import app
+
+    async def call():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            body = b'{"language": "en", "x": "' + b"a" * 20_000 + b'"}'
+            return await client.post("/trips", content=body, headers={"Content-Type": "application/json"})
+
+    resp = asyncio.run(call())
+    assert resp.status_code == 413 and resp.json()["detail"] == "body_too_large"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_guest_flag_comes_from_the_sign_in_provider(monkeypatch, anyio_backend):
+    tokens = {
+        "g": {"uid": "u1", "firebase": {"sign_in_provider": "anonymous"}},
+        "u": {"uid": "u2", "firebase": {"sign_in_provider": "google.com"}},
+    }
+    monkeypatch.setattr(auth, "firebase_app", lambda: None)
+    monkeypatch.setattr(config.get_settings(), "skip_appcheck", True)
+    monkeypatch.setattr(auth.auth, "verify_id_token", lambda token, app: tokens[token])
+    assert await auth.require_account(request({"Authorization": "Bearer g"})) == auth.Account("u1", guest=True)
+    assert await auth.require_account(request({"Authorization": "Bearer u"})) == auth.Account("u2", guest=False)
