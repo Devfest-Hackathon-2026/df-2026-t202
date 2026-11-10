@@ -99,4 +99,4 @@ npm run build && npm test   # build also type-checks
 ## Budget ($20 Cloud credit, total)
 Flash model by default, Pro only if Planner quality is low. Cache Places (`cache_places`) and YouTube (`cache_videos`, 7 days;
 YouTube allows about 100 searches a day). Use minimal field masks on Places and Routes. Respect the abuse limits
-(20 plans per user per day, 60 messages per trip). No new paid services without a team decision.
+(PLAN.md 9.6: 10 trips and 10 plans a day per user, 3 and 3 for guests, 200 plans a day for the app, 40 messages per trip). No new paid services without a team decision.
