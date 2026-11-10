@@ -33,7 +33,8 @@ export default function TripsPage() {
 
   return (
     <MapsProvider>
-      <main className="relative isolate min-h-[100svh] text-white">
+      {/* html and body never scroll (the map screens fill the viewport), so this page scrolls itself. */}
+      <main className="relative isolate h-[100svh] overflow-y-auto overscroll-contain text-white">
         {/* The start screen's photo, fixed behind the page, darkened a little so cards and text stay readable. */}
         <div
           aria-hidden="true"
