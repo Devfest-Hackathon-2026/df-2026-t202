@@ -48,5 +48,9 @@ service cloud.firestore {
     // Server caches: no client access.
     match /cache_places/{id} { allow read, write: if false; }
     match /cache_videos/{id} { allow read, write: if false; }
+
+    // Abuse-limit counters (PLAN.md 9.6): server only.
+    match /users/{uid}/limits/{day} { allow read, write: if false; }
+    match /usage/{day} { allow read, write: if false; }
   }
 }

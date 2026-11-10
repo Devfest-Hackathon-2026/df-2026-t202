@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+import re
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -24,10 +26,22 @@ TRANSPORT_OPTIONS = ["shinkansen", "train", "plane", "car", "bus", "ferry", "any
 PREF_OPTIONS = ["onsen", "food", "views", "history", "walking", "night_view", "nature", "shopping"]
 MAX_LIST_ITEMS = 20
 MAX_ITEM_LENGTH = 100
+MAX_TRIP_DAYS = 20  # one Planner call drafts the whole trip: a 20-day draft took 78 s (D22)
+MAX_DAYS_AHEAD = 730  # a trip starts within about 2 years
+MAX_BUDGET = 10_000_000_000  # stays far below Firestore's 64-bit integers in every currency
+MAX_GROUP = 20  # adults + children + infants: plans assume a car/train-sized group (D26)
+MAX_CHILDREN_PER_ADULT = 4
+CURRENCY_CODE = re.compile(r"^[A-Z]{3}$")
 
 
 class AnswerError(ValueError):
-    """The card answer has the wrong shape. The API returns 400 with this message."""
+    """The card answer is invalid. The API returns 400 with `code` as the detail, so the app can say what to fix:
+    trip_too_long, date_in_past, date_too_far, budget_too_low, adult_required, group_too_large, infant_needs_adult,
+    too_many_children, or invalid_answer (wrong shape)."""
+
+    def __init__(self, code: str, message: str = "") -> None:
+        super().__init__(message or code)
+        self.code = code
 
 
 class PlaceLookupError(Exception):
@@ -50,7 +64,10 @@ QUESTIONS: dict[str, dict[str, str]] = {
 }
 
 TEXTS: dict[str, dict[str, str]] = {
-    "rebuild": {"en": "Updated. Build the plan again?", "ja": "更新しました。プランを作り直しますか？"},
+    "rebuild": {
+        "en": "Got it. Tap “Update the plan” when you're ready.",
+        "ja": "「プランを更新」をタップしてください。",
+    },
     "fallback": {
         "en": "Sorry, I didn't catch that. You can use the card below.",
         "ja": "すみません、うまく読み取れませんでした。下のカードから選んでください。",
@@ -173,8 +190,10 @@ def apply_answer(slots: Slots, step: str, value: Any) -> Slots:
         return new
     try:
         _APPLY[step](new, value)
+    except AnswerError as e:
+        raise AnswerError(e.code, f"invalid answer for {step}: {e}") from None
     except (ValidationError, ValueError, TypeError, KeyError, AttributeError) as e:
-        raise AnswerError(f"invalid answer for {step}: {e}") from None
+        raise AnswerError("invalid_answer", f"invalid answer for {step}: {e}") from None
     new.status[step] = "done"
     return new
 
@@ -198,28 +217,47 @@ def _set_dest(slots: Slots, value: Any) -> None:
     _sync_currency(slots, old_country)
 
 
+def _today() -> date:
+    return datetime.now(ZoneInfo("Asia/Tokyo")).date()
+
+
 def _set_dates(slots: Slots, value: Any) -> None:
-    """value: {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} or {"nights": n}."""
+    """value: {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} or {"nights": n}. At most MAX_TRIP_DAYS days,
+    starting between yesterday (time zones behind Japan) and about 2 years ahead."""
     if isinstance(value, dict) and "nights" in value:
         nights = int(value["nights"])
-        if not 0 <= nights <= 60:
-            raise ValueError("nights must be 0-60")
+        if nights < 0:
+            raise ValueError("nights must be 0 or more")
+        if nights > MAX_TRIP_DAYS - 1:
+            raise AnswerError("trip_too_long", f"nights must be 0-{MAX_TRIP_DAYS - 1}")
         slots.nights, slots.dates = nights, None
         return
     dates = DateRange.model_validate(value)
     start, end = date.fromisoformat(dates.start), date.fromisoformat(dates.end)
     if end < start:
         raise ValueError("end is before start")
-    if (end - start).days > 60:
-        raise ValueError("trip longer than 60 days")
+    if (end - start).days > MAX_TRIP_DAYS - 1:
+        raise AnswerError("trip_too_long", f"trip longer than {MAX_TRIP_DAYS} days")
+    today = _today()
+    if start < today - timedelta(days=1):
+        raise AnswerError("date_in_past", "start is in the past")
+    if start > today + timedelta(days=MAX_DAYS_AHEAD):
+        raise AnswerError("date_too_far", "start is more than about 2 years ahead")
     slots.dates, slots.nights = dates, None
 
 
 def _set_people(slots: Slots, value: Any) -> None:
     people = People.model_validate(value)
-    counts = (people.adult, people.child, people.infant)
-    if min(counts) < 0 or max(counts) > 50 or people.adult + people.child < 1:
-        raise ValueError("need 1-50 travellers")
+    if min(people.adult, people.child, people.infant) < 0:
+        raise ValueError("counts must be 0 or more")
+    if people.adult < 1:
+        raise AnswerError("adult_required", "at least 1 adult")
+    if people.adult + people.child + people.infant > MAX_GROUP:
+        raise AnswerError("group_too_large", f"at most {MAX_GROUP} people")
+    if people.infant > people.adult:
+        raise AnswerError("infant_needs_adult", "at most 1 infant per adult")
+    if people.child > MAX_CHILDREN_PER_ADULT * people.adult:
+        raise AnswerError("too_many_children", f"at most {MAX_CHILDREN_PER_ADULT} children per adult")
     slots.people = people
 
 
@@ -227,14 +265,17 @@ def _set_budget(slots: Slots, value: Any) -> None:
     """value: {"basis": "person" | "total", "amount": n, "currency"?: "JPY"}. Currency defaults to the destination's."""
     if not isinstance(value, dict):
         raise TypeError("budget must be an object")
+    named = value.get("currency")
     currency = (
         slots.currency
-        or value.get("currency")
+        or (named if isinstance(named, str) and CURRENCY_CODE.match(named) else None)  # junk falls back
         or (slots.budget.currency if slots.budget else currency_for(_country(slots)))
     )
     budget = Budget.model_validate({**value, "currency": currency})
-    if budget.amount is not None and budget.amount < 0:
-        raise ValueError("amount must be >= 0")
+    if budget.amount is not None and budget.amount < 1:
+        raise AnswerError("budget_too_low", "amount must be 1 or more")  # "not decided" is the skip button
+    if budget.amount is not None and budget.amount > MAX_BUDGET:
+        raise ValueError("amount is too large")
     slots.budget = budget
 
 

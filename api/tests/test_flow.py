@@ -75,7 +75,14 @@ def test_nights_instead_of_dates():
         ("dates", {"start": "2027-03-13", "end": "2027-03-10"}),
         ("dates", {"start": "13/03/2027", "end": "2027-03-10"}),
         ("dates", {"nights": 99}),
+        ("dates", {"nights": 20}),  # 21 days: over the 20-day cap
+        ("dates", {"start": "2027-03-01", "end": "2027-03-21"}),  # 21 days
+        ("dates", {"start": "2020-03-10", "end": "2020-03-13"}),  # in the past
+        ("dates", {"start": "2099-03-10", "end": "2099-03-13"}),  # too far ahead
         ("people", {"adult": 0, "child": 0}),
+        ("people", {"adult": 0, "child": 2}),  # children need an adult
+        ("budget", {"basis": "person", "amount": 0}),  # a trip budget is 1 or more
+        ("budget", {"basis": "total", "amount": 10**30}),  # would overflow Firestore's integers
         ("people", {"adult": 500}),
         ("budget", 50000),
         ("transport", ["rocket"]),
@@ -278,3 +285,47 @@ def test_settings_currency_wins_over_destination_and_answers():
 def test_without_settings_currency_the_destination_decides():
     slots = flow.apply_answer(Slots(), "dest", {"label": "Paris", "countryCode": "FR"})
     assert slots.budget is not None and slots.budget.currency == "EUR"
+
+
+def test_largest_group_that_works():
+    slots = flow.apply_answer(Slots(), "people", {"adult": 4, "child": 12, "infant": 4})  # 20, 4 kids/adult
+    assert (slots.people.adult, slots.people.child, slots.people.infant) == (4, 12, 4)
+
+
+def test_20_day_trip_is_the_longest():
+    assert flow.apply_answer(Slots(), "dates", {"nights": 19}).nights == 19
+    slots = flow.apply_answer(Slots(), "dates", {"start": "2027-03-01", "end": "2027-03-20"})
+    assert slots.dates.end == "2027-03-20"
+
+
+@pytest.mark.parametrize(
+    ("step", "value", "code"),
+    [
+        ("dates", {"start": "2027-03-01", "end": "2027-03-21"}, "trip_too_long"),
+        ("dates", {"nights": 25}, "trip_too_long"),
+        ("dates", {"start": "2020-03-10", "end": "2020-03-13"}, "date_in_past"),
+        ("dates", {"start": "2099-03-10", "end": "2099-03-13"}, "date_too_far"),
+        ("budget", {"basis": "person", "amount": 0}, "budget_too_low"),
+        ("people", {"adult": 0, "child": 2}, "adult_required"),
+        ("people", {"adult": 500}, "group_too_large"),
+        ("people", {"adult": 10, "child": 6, "infant": 5}, "group_too_large"),  # 21
+        ("people", {"adult": 1, "infant": 2}, "infant_needs_adult"),
+        ("people", {"adult": 1, "child": 5}, "too_many_children"),
+        ("people", {"adult": 2, "child": -1}, "invalid_answer"),
+        ("transport", ["rocket"], "invalid_answer"),
+    ],
+)
+def test_bad_answers_say_what_to_fix(step, value, code):
+    with pytest.raises(flow.AnswerError) as exc:
+        flow.apply_answer(Slots(), step, value)
+    assert exc.value.code == code
+
+
+def test_junk_currency_falls_back_to_the_trip_currency():
+    slots = flow.apply_answer(Slots(), "budget", {"basis": "person", "amount": 500, "currency": "yen<script>"})
+    assert slots.budget.currency == "USD"  # no destination yet: the placeholder, not the junk
+
+
+def test_zero_budget_from_chat_is_ignored():
+    new = flow.merge_updates(Slots(), SlotUpdates.model_validate({"budget": {"basis": "total", "amount": 0}}))
+    assert new.status["budget"] == "empty"

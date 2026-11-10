@@ -141,6 +141,12 @@ async def search_text(query: str, lang: str, near: tuple[float, float] | None = 
     return parse_place(place)
 
 
+async def by_id(place_id: str, lang: str) -> dict | None:
+    """The same result as search_text, for a place we already know (a stop kept in a plan update, D27)."""
+    place = await _details(place_id, lang, PLACE_FIELDS)
+    return parse_place(place) if place else None
+
+
 async def _cache_get(key: str) -> dict | None:
     try:
         return await firestore.cache_get("places", key)

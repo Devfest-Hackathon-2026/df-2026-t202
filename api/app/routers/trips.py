@@ -7,17 +7,19 @@ overwrite each other. Gemini and Places calls happen before the transaction (it 
 import json
 import logging
 import secrets
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Path, status
 from google.cloud import firestore
 from google.cloud.firestore_v1.field_path import FieldPath
 
 from app import flow
 from app.agents import concierge
-from app.auth import User, require_owner
+from app.auth import ID_PATTERN, CurrentAccount, User, require_owner
+from app.config import get_settings
 from app.models import Budget, ConciergeOutput, CreateTripIn, MessageIn, PlaceRef, Slots
-from app.services.firestore import add_message, db, get_trip, now
-from app.services.limits import check_message_limit, reserve_messages
+from app.services.firestore import add_message, db, now
+from app.services.limits import check_message_limit, check_trip_limit, reserve_messages
 from app.services.llm import LLMError
 
 router = APIRouter()
@@ -25,6 +27,11 @@ log = logging.getLogger(__name__)
 
 MAX_TEXT_LENGTH = 1000
 MAX_AI_TEXT_LENGTH = 500  # cap on Gemini comment/clarify before storing
+MAX_PENDING_EDITS = 10  # plan requests kept for the next update (D27)
+MAX_PENDING_EDIT_LENGTH = 300
+
+TripId = Annotated[str, Path(pattern=ID_PATTERN)]
+ShareId = Annotated[str, Path(pattern=ID_PATTERN)]
 
 
 def _new_slots(currency: str | None) -> Slots:
@@ -34,7 +41,9 @@ def _new_slots(currency: str | None) -> Slots:
 
 
 @router.post("/trips")
-async def create_trip(body: CreateTripIn, uid: User) -> dict:
+async def create_trip(body: CreateTripIn, account: CurrentAccount) -> dict:
+    await check_trip_limit(account)  # 429 trip_limit_reached (10 a day, 3 for guests)
+    uid = account.uid
     ref = db().collection("trips").document()
     await ref.set(
         {
@@ -59,7 +68,7 @@ async def create_trip(body: CreateTripIn, uid: User) -> dict:
 
 
 @router.post("/trips/{trip_id}/messages")
-async def post_message(trip_id: str, body: MessageIn, uid: User) -> dict:
+async def post_message(trip_id: TripId, body: MessageIn, uid: User) -> dict:
     trip = await require_owner(trip_id, uid)
     if trip.get("status") == "planning":
         raise HTTPException(status.HTTP_409_CONFLICT, "planning_in_progress")
@@ -67,7 +76,7 @@ async def post_message(trip_id: str, body: MessageIn, uid: User) -> dict:
     if body.type == "answer":
         if body.step is None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "step_required")
-        return await _handle_answer(trip_id, body.step, body.value)
+        return await _handle_answer(trip_id, trip, body.step, body.value)
 
     text = (body.text or "").strip()
     if not text or len(text) > MAX_TEXT_LENGTH:
@@ -75,9 +84,14 @@ async def post_message(trip_id: str, body: MessageIn, uid: User) -> dict:
     return await _handle_text(trip_id, trip, text)
 
 
-async def _handle_answer(trip_id: str, step: str, value) -> dict:
+async def _handle_answer(trip_id: str, trip: dict, step: str, value) -> dict:
+    # Cheap checks first: a rejected answer must not cost a Places lookup. The transaction checks again.
+    if not flow.can_answer(Slots.model_validate(trip["slots"]), trip["asking"], step):
+        raise HTTPException(status.HTTP_409_CONFLICT, "step_not_asked")
+    check_message_limit(trip)
+
     trip_ref = db().collection("trips").document(trip_id)
-    value = await _resolve_dest(trip_id, step, value)
+    value = await _resolve_place(step, value, trip.get("language", "en"))
 
     @firestore.async_transactional
     async def apply(tx: firestore.AsyncTransaction) -> str:
@@ -94,7 +108,7 @@ async def _handle_answer(trip_id: str, step: str, value) -> dict:
             new_slots = flow.apply_answer(slots, step, value)
         except flow.AnswerError as e:
             log.info(json.dumps({"msg": "invalid_answer", "tripId": trip_id, "step": step, "err": str(e)[:300]}))
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid_answer") from None
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, e.code) from None  # e.g. trip_too_long
         if new_slots == slots and step != asking:
             return asking  # a repeated tap of an earlier answer: nothing changed, no new messages
 
@@ -108,36 +122,38 @@ async def _handle_answer(trip_id: str, step: str, value) -> dict:
     return {"asking": await apply(db().transaction())}
 
 
-async def _resolve_dest(trip_id: str, step: str, value):
-    """Card answers carry a label but no place. Look it up, so the trip gets the real place id,
-    coordinates and country — the country is what picks the currency (flow._sync_currency).
-    A failed lookup keeps the label: the plan pipeline resolves places again anyway."""
+async def _resolve_place(step: str, value, lang: str):
+    """Card answers carry a label; the server always looks the place up, so the trip gets the real place id,
+    coordinates and country (the country picks the currency, flow._sync_currency). Place ids or coordinates sent
+    by the client are ignored. A destination that doesn't exist is a 400; if Places is down, the label is kept
+    (the plan pipeline resolves places again anyway)."""
     if step == "transport":
-        return await _resolve_start(trip_id, value)
-    if step != "dest" or not isinstance(value, dict) or value.get("placeId"):
+        return await _resolve_start(value, lang)
+    if step != "dest" or not isinstance(value, dict):
         return value
     label = str(value.get("label") or "").strip()
     if not label:
         return value
-    trip = await get_trip(trip_id)
     try:
-        place = await flow.search_place(label, (trip or {}).get("language", "en"))
+        place = await flow.search_place(label, lang)
     except flow.PlaceLookupError:
-        return value
-    return place.model_dump(mode="json") if place else value
+        return {"label": label}
+    if place is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "place_not_found")
+    return place.model_dump(mode="json")
 
 
-async def _resolve_start(trip_id: str, value):
+async def _resolve_start(value, lang: str):
     """The transport card's start point. A specific place (airport, station, hotel) becomes the origin;
-    an area (city, state) or "not decided" leaves it empty, so Day 1 starts at the first attraction."""
+    an area (city, state), an unknown place or "not decided" leaves it empty, so Day 1 starts at the first
+    attraction."""
     if not isinstance(value, dict) or not isinstance(value.get("origin"), dict):
         return value
     label = str(value["origin"].get("label") or "").strip()
-    if not label or value["origin"].get("placeId"):
-        return value
-    trip = await get_trip(trip_id)
+    if not label:
+        return {**value, "origin": None}
     try:
-        origin = await flow.search_start(label, (trip or {}).get("language", "en"))
+        origin = await flow.search_start(label, lang)
     except flow.PlaceLookupError:
         origin = None  # can't tell what it is: don't pin Day 1 to it
     return {**value, "origin": origin.model_dump(mode="json") if origin else None}
@@ -151,12 +167,15 @@ async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
     await reserve_messages(trip_id)  # before Gemini, so parallel requests can't pass the limit
 
     # Slow work first, outside the transaction.
-    out: ConciergeOutput | None
-    try:
-        out = await concierge.run(slots, step, text, lang)
-    except LLMError as e:
-        log.warning(json.dumps({"msg": "concierge_failed", "tripId": trip_id, "err": str(e)[:200]}))
-        out = None
+    out: ConciergeOutput | None = None
+    if not any(ch.isalnum() for ch in text):
+        # Only symbols or emoji: nothing to extract, so no Gemini call. The fallback shows the card again.
+        log.info(json.dumps({"msg": "concierge_skipped", "tripId": trip_id, "reason": "no_letters"}))
+    else:
+        try:
+            out = await concierge.run(slots, step, text, lang)
+        except LLMError as e:
+            log.warning(json.dumps({"msg": "concierge_failed", "tripId": trip_id, "err": str(e)[:200]}))
 
     dest: PlaceRef | None = None
     origin: PlaceRef | None = None
@@ -202,7 +221,11 @@ async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
             )
             return current["asking"]
         new_slots = flow.merge_updates(current_slots, out.updates, dest=dest, origin=origin)
-        _write_turn(
+        pending = None
+        request = (out.planRequest or "").strip()[:MAX_PENDING_EDIT_LENGTH]
+        if request and current.get("currentPlanId"):  # before the first plan, the Planner reads the chat anyway
+            pending = [*(current.get("pendingEdits") or []), request][-MAX_PENDING_EDITS:]
+        return _write_turn(
             tx,
             trip_ref,
             current,
@@ -211,8 +234,9 @@ async def _handle_text(trip_id: str, trip: dict, text: str) -> dict:
             None,
             comment=comment,
             clarify=clarify,
+            edit=out.edit,
+            pending_edits=pending,
         )
-        return current["asking"] if clarify else flow.next_step(new_slots)
 
     return {"asking": await apply(db().transaction())}
 
@@ -233,12 +257,22 @@ def _write_turn(
     clarify: str | None = None,
     repeat_card: bool = False,
     count_messages: bool = False,
-) -> None:
+    edit: str | None = None,
+    pending_edits: list[str] | None = None,
+) -> str:
     """Write the user message, the AI reply (with its card) and the new slots, in one transaction.
+    Returns the step now asked.
 
-    `count_messages`: add the 2 messages to `messageCount` (the text path reserved them earlier instead)."""
+    `count_messages`: add the 2 messages to `messageCount` (the text path reserved them earlier instead).
+    `edit`: the user wants to change this condition but gave no value: ask its card again, even if it is done.
+    `pending_edits`: the new trips.pendingEdits (plan requests for the next update, D27)."""
     lang = trip["language"]
-    if clarify or repeat_card:
+    if edit and not (clarify or repeat_card):
+        asking = edit
+        card_slots = new_slots
+        question = flow.question_for(edit, lang)
+        reply = f"{comment}\n{question}" if comment else question
+    elif clarify or repeat_card:
         asking = trip["asking"]  # ask the same question again
         card_slots = Slots.model_validate(trip["slots"]) if repeat_card else new_slots
         if clarify:
@@ -264,11 +298,14 @@ def _write_turn(
     update = {"slots": new_slots.model_dump(mode="json"), "asking": asking, "updatedAt": firestore.SERVER_TIMESTAMP}
     if count_messages:
         update["messageCount"] = firestore.Increment(2)
+    if pending_edits is not None:
+        update["pendingEdits"] = pending_edits
     tx.update(trip_ref, update)
+    return asking
 
 
 @router.post("/trips/{trip_id}/share")
-async def share_trip(trip_id: str, uid: User) -> dict:
+async def share_trip(trip_id: TripId, uid: User) -> dict:
     await require_owner(trip_id, uid)
     trip_ref = db().collection("trips").document(trip_id)
 
@@ -292,8 +329,9 @@ async def share_trip(trip_id: str, uid: User) -> dict:
 
 
 @router.post("/shares/{share_id}/join")
-async def join_share(share_id: str, uid: User) -> dict:
-    """Anonymous users too. Adds the caller as a viewer; never downgrades an owner."""
+async def join_share(share_id: ShareId, uid: User) -> dict:
+    """Anonymous users too. Adds the caller as a viewer; never downgrades an owner.
+    403 share_full once the trip has max_members_per_trip members (keeps the trip doc small)."""
     share_ref = db().collection("shares").document(share_id)
 
     @firestore.async_transactional
@@ -306,7 +344,10 @@ async def join_share(share_id: str, uid: User) -> dict:
         trip = await trip_ref.get(transaction=tx)
         if not trip.exists:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "trip_not_found")
-        if uid not in (trip.get("members") or {}):
+        members = trip.get("members") or {}
+        if uid not in members:
+            if len(members) >= get_settings().max_members_per_trip:
+                raise HTTPException(status.HTTP_403_FORBIDDEN, "share_full")
             tx.update(trip_ref, {FieldPath("members", uid).to_api_repr(): "viewer"})
         return trip_id
 

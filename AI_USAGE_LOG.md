@@ -28,6 +28,8 @@ before it was merged.
 | Back end: plan engine | Implementing the Places, Routes and YouTube services and the plan pipeline, tested against the real APIs | Raghav: how places are verified, how routes and videos are chosen, quality over speed |
 | Front end | Building the Next.js screens from the team's design | Soma: the framework, the one-screen map design and the UI |
 | Quality and speed | Running end-to-end checks against real Google APIs and measuring timings | The team chose each fix from the measurements, e.g. faster plans without lowering quality (D6) |
+| Security review and hardening | Reviewing the API, prompts and rules for abuse, cost and impossible input, then writing the limits, validation and tests | Nazmul chose the limits, the 14-day cap and the destination cards from the options (D21–D24) |
+| Edit by chat and plan updates | Implementing card re-opening, plan requests, the incremental plan update (`pipeline.update`, `planner.revise`) with tests, and the itinerary jump bar | Nazmul chose to revise only changed days and reuse earlier lookups over a full rebuild or code-only patching (D27) |
 
 **Guardrails:** the assistants cannot read secrets (`.env` files are blocked), all keys stay in Secret Manager, and every
 commit is scanned for secrets before it is pushed.

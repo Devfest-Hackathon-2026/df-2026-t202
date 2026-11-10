@@ -78,6 +78,8 @@ class ConciergeOutput(BaseModel):
     updates: SlotUpdates = Field(default_factory=SlotUpdates)
     comment: str = ""               # short reply in the trip language
     clarify: Optional[str] = None   # one follow-up question, if the text was unclear
+    edit: Optional[StepKey] = None  # the user wants to change this condition but gave no new value: ask its card
+    planRequest: Optional[str] = None  # a change to the existing plan that isn't a condition ("day 2 more relaxed")
 
 
 class UiCard(BaseModel):
@@ -152,6 +154,14 @@ class PlanFix(BaseModel):
     days: list[DayFix]
 
 
+class PlanUpdate(BaseModel):
+    """Planner output when an existing plan is updated (not stored, D27): only the changed days, and the cost and
+    checks when they change."""
+    days: list[DayFix]
+    cost: Optional[Cost] = None
+    checks: Optional[list[str]] = None
+
+
 # ---------- API request bodies ----------
 class CreateTripIn(BaseModel):
     language: Lang = "en"
@@ -162,4 +172,4 @@ class MessageIn(BaseModel):
     type: Literal["answer", "text"]
     step: Optional[StepKey] = None  # for type="answer"
     value: Any = None               # for type="answer"
-    text: Optional[str] = None      # for type="text"
+    text: Optional[str] = Field(default=None, max_length=1000)  # for type="text"
