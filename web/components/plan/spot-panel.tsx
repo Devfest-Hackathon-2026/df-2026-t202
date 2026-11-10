@@ -81,6 +81,8 @@ export function SpotPanel({
             key={stop.id}
             placeId={stop.placeId}
             className="h-full w-full overflow-hidden rounded-xl bg-fill"
+            height={480}
+            credit
           />
         )}
       </div>

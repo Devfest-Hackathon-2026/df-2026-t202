@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { safeCurrency } from '@/lib/currency';
 import { useLanguage, useT } from '@/lib/i18n';
 import type { Slots, StepKey, TransportMode, UiCard } from '@/lib/types';
 
@@ -70,6 +71,8 @@ export function QuestionCard({
   onPlanMusts,
   plannedMusts,
   onEdit,
+  hasPlan = false,
+  pendingEdits = [],
 }: {
   card: UiCard;
   slots: Slots;
@@ -80,6 +83,10 @@ export function QuestionCard({
   onPlanMusts?: (labels: string[]) => void;
   plannedMusts?: string[];
   onEdit?: (step: StepKey) => void;
+  /** A plan exists: the ready card updates it instead of building a new one (D27). */
+  hasPlan?: boolean;
+  /** Plan requests from the chat, shown on the ready card. */
+  pendingEdits?: string[];
 }) {
   const props = { card, slots, disabled, onAnswer, onBack };
   switch (card.type) {
@@ -105,6 +112,8 @@ export function QuestionCard({
           onGenerate={onGenerate}
           onBack={onBack}
           onEdit={onEdit}
+          hasPlan={hasPlan}
+          pendingEdits={pendingEdits}
         />
       );
     default:
@@ -144,20 +153,11 @@ function SkipButton({
 
 /* ---------------------------------------------------------------- destination */
 
-/** Suggestions for the demo region. Anywhere else is reached by typing, or by the map picker. */
-const SUGGESTIONS = [
-  'kyushu',
-  'fukuoka',
-  'nagasaki',
-  'kumamoto',
-  'oita',
-  'miyazaki',
-  'kagoshima',
-  'saga',
-];
-
-/** These suggestions are all in Japan; the country is what picks the trip's currency. */
-const SUGGESTION_COUNTRY = 'JP';
+/**
+ * Suggestions: the demo region first, then popular places worldwide. Anywhere else is reached by
+ * typing. The server looks every pick up on the map, which also sets its country and currency.
+ */
+const SUGGESTIONS = ['kyushu', 'kyoto', 'seoul', 'taipei', 'bangkok', 'bali', 'paris', 'newyork'];
 
 /**
  * A suggestion that covers several places. Picking one opens the places inside it, so the
@@ -231,10 +231,8 @@ function DestCard({
             disabled={disabled}
             onClick={() => {
               onPlanMusts?.(inside.map((key) => t(`dest.${key}.name`)));
-              onAnswer('dest', {
-                label: t(`dest.${broad}.name`),
-                countryCode: SUGGESTION_COUNTRY,
-              });
+              // "All of Kyushu" reads well on the card; the map search needs plain "Kyushu".
+              onAnswer('dest', { label: t(`dest.${broad}.query`) });
             }}
           >
             {t('card.ok')}
@@ -279,12 +277,7 @@ function DestCard({
             className="hover:border-ink border-ink/15 flex min-h-[64px] flex-col justify-center gap-0.5 rounded-xl border bg-surface px-3 py-2 text-left transition-colors"
             disabled={disabled}
             onClick={() =>
-              BROAD[key]
-                ? setBroad(key)
-                : onAnswer('dest', {
-                    label: t(`dest.${key}.name`),
-                    countryCode: SUGGESTION_COUNTRY,
-                  })
+              BROAD[key] ? setBroad(key) : onAnswer('dest', { label: t(`dest.${key}.name`) })
             }
           >
             <span className="text-ink text-[15px] font-bold">{t(`dest.${key}.name`)}</span>
@@ -328,12 +321,18 @@ function weekend(weeksAhead: number): [number, number] {
   return [saturday.getTime(), saturday.getTime() + DAY_MS];
 }
 
+/** The longest trip the planner builds, and how far ahead it can start (api/app/flow.py). */
+const MAX_TRIP_DAYS = 20;
+const MAX_MONTHS_AHEAD = 23;
+
 function DatesCard({ disabled, onAnswer, onBack }: CardProps) {
   const t = useT();
   const lang = useLanguage();
   const [monthOffset, setMonthOffset] = useState(0);
   const [start, setStart] = useState<number | null>(null);
   const [end, setEnd] = useState<number | null>(null);
+  // The traveller just picked an end date that made the trip longer than the limit.
+  const [tooLong, setTooLong] = useState(false);
 
   const today = startOfDay(Date.now());
   const base = new Date();
@@ -351,7 +350,21 @@ function DatesCard({ disabled, onAnswer, onBack }: CardProps) {
 
   const nights = start && end ? Math.round((end - start) / DAY_MS) : null;
 
+  // The last end date the limit allows, once a start is picked.
+  const lastEnd = start != null ? start + (MAX_TRIP_DAYS - 1) * DAY_MS : null;
+
   function pick(time: number) {
+    setTooLong(false);
+    if (start != null && end == null && time === start) {
+      setStart(null); // tapping the start again clears it, to pick another one
+      return;
+    }
+    if (start != null && end == null && lastEnd != null && time > lastEnd + DAY_MS / 2) {
+      // Too long: clear the selection and ask for a shorter trip (the message under the calendar).
+      setStart(null);
+      setTooLong(true);
+      return;
+    }
     if (!start || (start && end) || time < start) {
       setStart(time);
       setEnd(null);
@@ -381,6 +394,7 @@ function DatesCard({ disabled, onAnswer, onBack }: CardProps) {
               onClick={() => {
                 setStart(from);
                 setEnd(to);
+                setTooLong(false);
                 const target = new Date(from);
                 setMonthOffset(
                   (target.getFullYear() - base.getFullYear()) * 12 +
@@ -412,7 +426,7 @@ function DatesCard({ disabled, onAnswer, onBack }: CardProps) {
           type="button"
           className={ROUND}
           aria-label={t('card.dates.nextMonth')}
-          disabled={disabled}
+          disabled={disabled || monthOffset >= MAX_MONTHS_AHEAD}
           onClick={() => setMonthOffset(monthOffset + 1)}
         >
           <ChevronRight size={18} aria-hidden="true" />
@@ -478,6 +492,13 @@ function DatesCard({ disabled, onAnswer, onBack }: CardProps) {
         </span>
       </div>
 
+      {/* Only after an end date too far out. */}
+      {tooLong && (
+        <p className="text-accent m-0 text-[12px] leading-snug" role="status">
+          {t('card.dates.tooLong').replace('{max}', String(MAX_TRIP_DAYS))}
+        </p>
+      )}
+
       <div className={ACTIONS}>
         {onBack && <BackButton onBack={onBack} disabled={disabled} />}
         <SkipButton step="dates" disabled={disabled} onAnswer={onAnswer} />
@@ -496,12 +517,32 @@ function DatesCard({ disabled, onAnswer, onBack }: CardProps) {
 
 /* ---------------------------------------------------------------- people */
 
+/** Group rules the planner can work with (api/app/flow.py _set_people). */
+const MAX_GROUP = 20;
+const MAX_CHILDREN_PER_ADULT = 4;
+
+type People = { adult: number; child: number; infant: number };
+
+/** Why a group can't be planned, as a `card.people.*` key, or null when it's fine. */
+function groupProblem(p: People): string | null {
+  if (p.adult < 1) return 'adultRequired';
+  if (p.adult + p.child + p.infant > MAX_GROUP) return 'groupTooLarge';
+  if (p.infant > p.adult) return 'infantNeedsAdult';
+  if (p.child > MAX_CHILDREN_PER_ADULT * p.adult) return 'tooManyChildren';
+  return null;
+}
+
 function PeopleCard({ slots, disabled, onAnswer, onBack }: CardProps) {
   const t = useT();
-  const [people, setPeople] = useState(slots.people ?? { adult: 2, child: 0, infant: 0 });
-  const total = people.adult + people.child + people.infant;
-  const set = (key: 'adult' | 'child' | 'infant', delta: number) =>
-    setPeople({ ...people, [key]: people[key] + delta });
+  const [people, setPeople] = useState<People>(slots.people ?? { adult: 2, child: 0, infant: 0 });
+  // A tap that would break a group rule doesn't change the counts; it shows why instead.
+  const [problem, setProblem] = useState<string | null>(null);
+  const set = (key: keyof People, delta: number) => {
+    const next = { ...people, [key]: people[key] + delta };
+    const issue = groupProblem(next);
+    setProblem(issue);
+    if (!issue) setPeople(next);
+  };
 
   return (
     <div className={CARD}>
@@ -511,7 +552,7 @@ function PeopleCard({ slots, disabled, onAnswer, onBack }: CardProps) {
             type="button"
             className={`${ROUND} h-12 w-12`}
             aria-label={t('card.people.decrease').replace('{what}', t('card.people.adult'))}
-            disabled={disabled || people.adult <= 1}
+            disabled={disabled}
             onClick={() => set('adult', -1)}
           >
             <Minus size={18} aria-hidden="true" />
@@ -526,7 +567,7 @@ function PeopleCard({ slots, disabled, onAnswer, onBack }: CardProps) {
             type="button"
             className={`${ROUND} h-12 w-12`}
             aria-label={t('card.people.increase').replace('{what}', t('card.people.adult'))}
-            disabled={disabled || total >= 50}
+            disabled={disabled}
             onClick={() => set('adult', 1)}
           >
             <Plus size={18} aria-hidden="true" />
@@ -565,7 +606,7 @@ function PeopleCard({ slots, disabled, onAnswer, onBack }: CardProps) {
               type="button"
               className={`${ROUND} h-9 w-9`}
               aria-label={t('card.people.increase').replace('{what}', t(`card.people.${key}`))}
-              disabled={disabled || total >= 50}
+              disabled={disabled}
               onClick={() => set(key, 1)}
             >
               <Plus size={15} aria-hidden="true" />
@@ -573,6 +614,15 @@ function PeopleCard({ slots, disabled, onAnswer, onBack }: CardProps) {
           </span>
         </div>
       ))}
+
+      {problem && (
+        <p className="text-accent m-0 text-[12px] leading-snug" role="status">
+          {t(`card.people.${problem}`).replace(
+            '{max}',
+            String(problem === 'groupTooLarge' ? MAX_GROUP : MAX_CHILDREN_PER_ADULT),
+          )}
+        </p>
+      )}
 
       <div className={ACTIONS}>
         {onBack && <BackButton onBack={onBack} disabled={disabled} />}
@@ -598,7 +648,7 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
   const chips = card.options.map(Number).filter(Number.isFinite);
   // The server falls back to USD when the destination's country is unknown
   // (flow.currency_for), and its chip amounts are in that currency. Match it.
-  const currency = slots.budget?.currency ?? 'USD';
+  const currency = safeCurrency(slots.budget?.currency ?? 'USD');
   const [basis, setBasis] = useState<'person' | 'total'>(slots.budget?.basis ?? 'person');
   const [amount, setAmount] = useState(slots.budget?.amount ?? chips[1] ?? 0);
   const max = (chips[chips.length - 1] ?? 1000) * 2;
@@ -617,7 +667,8 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
   const symbolFirst =
     parts.findIndex((part) => part.type === 'currency') <
     parts.findIndex((part) => part.type === 'integer');
-  const submit = () => onAnswer('budget', { basis, amount, currency });
+  // A budget is at least 1: "no budget" is the Skip button (the API rejects 0).
+  const submit = () => amount >= 1 && onAnswer('budget', { basis, amount, currency });
 
   return (
     <div className={CARD}>
@@ -714,7 +765,12 @@ function BudgetCard({ card, slots, disabled, onAnswer, onBack }: CardProps) {
       <div className={ACTIONS}>
         {onBack && <BackButton onBack={onBack} disabled={disabled} />}
         <SkipButton step="budget" disabled={disabled} onAnswer={onAnswer} />
-        <button type="button" className={PRIMARY} disabled={disabled} onClick={submit}>
+        <button
+          type="button"
+          className={PRIMARY}
+          disabled={disabled || amount < 1}
+          onClick={submit}
+        >
           {t('card.ok')}
         </button>
       </div>
@@ -952,12 +1008,16 @@ function ReadyCard({
   onGenerate,
   onBack,
   onEdit,
+  hasPlan,
+  pendingEdits,
 }: {
   slots: Slots;
   disabled: boolean;
   onGenerate: () => void;
   onBack?: () => void;
   onEdit?: (step: StepKey) => void;
+  hasPlan: boolean;
+  pendingEdits: string[];
 }) {
   const t = useT();
   const lang = useLanguage();
@@ -1008,7 +1068,7 @@ function ReadyCard({
         if (!slots.budget?.amount) return '';
         return `${new Intl.NumberFormat(lang, {
           style: 'currency',
-          currency: slots.budget.currency,
+          currency: safeCurrency(slots.budget.currency),
           maximumFractionDigits: 0,
         }).format(slots.budget.amount)} ${t(`card.ready.${slots.budget.basis}`)}`;
       case 'transport':
@@ -1080,6 +1140,19 @@ function ReadyCard({
           );
         })}
       </div>
+      {pendingEdits.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-muted text-[11px]">{t('card.ready.changes')}</span>
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+            {pendingEdits.map((edit, i) => (
+              <li key={i} className="text-ink flex gap-2 text-[14px] leading-snug">
+                <Pencil size={13} className="text-muted mt-0.5 flex-none" aria-hidden="true" />
+                <span className="min-w-0 break-words">{edit}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex gap-2">
         {onBack && (
           <button
@@ -1099,7 +1172,7 @@ function ReadyCard({
           onClick={onGenerate}
         >
           <Sparkles size={16} aria-hidden="true" />
-          {t('card.generate')}
+          {t(hasPlan ? 'card.update' : 'card.generate')}
         </button>
       </div>
     </div>

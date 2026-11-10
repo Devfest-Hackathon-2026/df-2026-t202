@@ -63,7 +63,8 @@ export default function TripPage({ params }: { params: Promise<{ tripId: string 
   if (!trip.currentPlanId) {
     return (
       <main className="relative flex h-[100svh] flex-col overflow-hidden bg-[url('/dusk.webp')] bg-cover bg-[position:50%_45%]">
-        <header className="flex flex-none items-center justify-end gap-2 px-4 py-3">
+        {/* Above the chat: its bubbles use backdrop blur, which would otherwise paint over the menu. */}
+        <header className="relative z-40 flex flex-none items-center justify-end gap-2 px-4 py-3">
           <UserMenu user={user} trips={trips} />
         </header>
         <PhotoChat trip={trip} messages={messages} />

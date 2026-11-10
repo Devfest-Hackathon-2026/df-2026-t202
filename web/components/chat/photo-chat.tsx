@@ -14,6 +14,7 @@ import { LanguageNote } from '@/components/language-note';
 import { PlanProgress } from '@/components/plan/plan-panel';
 import { useT } from '@/lib/i18n';
 import { takeFirstMessage } from '@/lib/first-message';
+import { MAX_TEXT_LENGTH } from '@/lib/api';
 import { useChatActions } from '@/lib/use-chat';
 import { useStickToBottom } from '@/lib/use-stick-to-bottom';
 import {
@@ -83,7 +84,8 @@ export function PhotoChat({ trip, messages }: { trip: Trip; messages: Message[] 
     .find((step) => asked.has(step));
   const planning = trip.status === 'planning';
   const busy = sending || planning;
-  const typing = useAwaitingReply(messages, sending || pending != null, failed) && !planning;
+  const typing =
+    useAwaitingReply(messages, sending || pending != null, failed != null) && !planning;
   const cardKey = `${lastAi?.id}-${back ?? ''}-${card?.type}`;
   const cardDelay = useFirstCardDelay(cardKey, messages.length);
 
@@ -146,7 +148,7 @@ export function PhotoChat({ trip, messages }: { trip: Trip; messages: Message[] 
               <PlanProgress progress={trip.progress ?? 'spots'} />
             </div>
           )}
-          {failed && <p className="text-accent m-0 text-[13px]">{t('state.sendFailed')}</p>}
+          {failed && <p className="text-accent m-0 text-[13px]">{t(failed)}</p>}
         </div>
       </div>
 
@@ -161,6 +163,7 @@ export function PhotoChat({ trip, messages }: { trip: Trip; messages: Message[] 
           <textarea
             className="w-full resize-none border-0 bg-transparent p-0 text-[17px] leading-snug text-white outline-none placeholder:text-white/75 [text-shadow:0_1px_6px_rgba(8,24,48,0.45)]"
             rows={2}
+            maxLength={MAX_TEXT_LENGTH}
             value={text}
             placeholder={t('chat.inputPlaceholder')}
             aria-label={t('chat.input')}

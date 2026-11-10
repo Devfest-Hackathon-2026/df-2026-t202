@@ -42,3 +42,17 @@ export function useCurrency(): Currency {
   }, []);
   return currency;
 }
+
+/**
+ * A currency code Intl.NumberFormat can format. It throws a RangeError on codes that aren't 3 letters ("円"), which
+ * would crash the page, so an unknown code becomes "XXX" (ISO 4217 "no currency", shown as "¤").
+ */
+export function safeCurrency(code: string | null | undefined): string {
+  if (!code) return 'XXX';
+  try {
+    new Intl.NumberFormat('en', { style: 'currency', currency: code });
+    return code;
+  } catch {
+    return 'XXX';
+  }
+}

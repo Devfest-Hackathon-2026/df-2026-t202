@@ -116,7 +116,8 @@
       "nextMonth": "Next month",
       "pickStart": "Pick a start date",
       "pickEnd": "Pick the day you come back",
-      "dayTrip": "Day trip"
+      "dayTrip": "Day trip",
+      "tooLong": "Please choose {max} days or less."
     },
     "people": {
       "adult": "Adults",
@@ -126,7 +127,11 @@
       "infant": "Infants",
       "infantSub": "under 2",
       "decrease": "One fewer {what}",
-      "increase": "One more {what}"
+      "increase": "One more {what}",
+      "adultRequired": "A trip needs at least one adult.",
+      "groupTooLarge": "Groups can be up to {max} people.",
+      "infantNeedsAdult": "Each infant needs an adult. Please add an adult first.",
+      "tooManyChildren": "Up to {max} children per adult. Please add an adult first."
     },
     "budget": {
       "label": "Budget",
@@ -159,14 +164,16 @@
       "infant": "{n} infants",
       "infantOne": "1 infant",
       "person": "per person",
-      "total": "in total"
+      "total": "in total",
+      "changes": "Your changes"
     },
     "transport": {
       "startTitle": "Where does your trip start?",
       "startHint": "An airport, station or hotel and Day 1 starts there. Just a city or area? Then we start at the first sight.",
       "startPlaceholder": "e.g. an airport or hotel",
       "notDecided": "Not decided yet"
-    }
+    },
+    "update": "Update the plan"
   },
   "transport": {
     "shinkansen": "Shinkansen",
@@ -222,7 +229,11 @@
       "routes": "Drive, train and ferry times between stops",
       "videos": "A YouTube Short for each stop"
     },
-    "stopsCount": "{n} stops"
+    "stopsCount": "{n} stops",
+    "updating": "Updating your plan",
+    "updatingNow": "Updating your plan…",
+    "budget": "Budget",
+    "toTop": "Back to top"
   },
   "share": {
     "title": "Shared trip",
@@ -274,7 +285,8 @@
   "dest": {
     "kyushu": {
       "name": "All of Kyushu",
-      "sub": "Seven prefectures"
+      "sub": "Seven prefectures",
+      "query": "Kyushu"
     },
     "fukuoka": {
       "name": "Fukuoka",
@@ -303,6 +315,76 @@
     "saga": {
       "name": "Saga",
       "sub": "Yobuko, Ureshino"
+    },
+    "kyoto": {
+      "name": "Kyoto",
+      "sub": "Temples, Arashiyama"
+    },
+    "seoul": {
+      "name": "Seoul",
+      "sub": "Palaces, street food"
+    },
+    "taipei": {
+      "name": "Taipei",
+      "sub": "Night markets, Jiufen"
+    },
+    "bangkok": {
+      "name": "Bangkok",
+      "sub": "Temples, river boats"
+    },
+    "bali": {
+      "name": "Bali",
+      "sub": "Rice terraces, beaches"
+    },
+    "paris": {
+      "name": "Paris",
+      "sub": "Museums, cafés"
+    },
+    "newyork": {
+      "name": "New York",
+      "sub": "Skyline, Central Park"
     }
+  },
+  "error": {
+    "trip_limit_reached": "You've started a lot of trips today. Please continue one of your trips or come back tomorrow.",
+    "plan_limit_reached": "You've built the most plans for today. Your trips are saved; please try again tomorrow.",
+    "message_limit_reached": "This chat is full. Use the cards to change answers, or start a new trip.",
+    "service_busy": "Tripi is very busy today. Please try again tomorrow.",
+    "too_fast": "One moment, I'm still reading your last message.",
+    "place_not_found": "I couldn't find that place on the map. Try a city or region name.",
+    "share_full": "This shared trip has reached its viewer limit. Ask the owner for the plan.",
+    "pageTitle": "Something went wrong",
+    "pageBody": "Please reload the page. Your trips are saved.",
+    "reload": "Reload",
+    "trip_too_long": "Trips can be up to 20 days. Please choose shorter dates.",
+    "date_in_past": "That date has already passed. Please choose a date from today.",
+    "date_too_far": "Please choose a start date within the next two years.",
+    "budget_too_low": "Please set a budget above zero, or choose \"Not decided yet\".",
+    "adult_required": "Please include at least one adult in the group.",
+    "group_too_large": "Groups can be up to 20 people. Please choose a smaller group.",
+    "infant_needs_adult": "Each infant needs an adult. Please add an adult.",
+    "too_many_children": "Up to 4 children per adult. Please add an adult."
+  },
+  "menu": {
+    "guest": "Guest",
+    "guestSub": "Your trips are saved on this device",
+    "guestNudge": "Sign in with Google to keep your trips on every device and build more plans each day.",
+    "signInGoogle": "Sign in with Google",
+    "accountExists": "That Google account already uses Tripi. Sign in to it to see its trips; trips made as a guest stay with the guest.",
+    "signInExisting": "Sign in to that account",
+    "linkFailed": "Sign-in didn't finish. Please try again.",
+    "recent": "Recent trips",
+    "seeAll": "See all trips ({n})",
+    "settings": "Settings"
+  },
+  "tripsPage": {
+    "home": "Home",
+    "count": "{n} trips",
+    "emptyTitle": "No trips yet",
+    "emptyBody": "Tell Tripi where you want to go, and your trips will appear here.",
+    "error": "Your trips couldn't be loaded. Please reload the page.",
+    "datesNotSet": "Dates not set",
+    "shared": "Shared with you",
+    "countOne": "1 trip"
   }
 }
