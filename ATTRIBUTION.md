@@ -10,7 +10,7 @@ source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check 
 | Tailwind CSS | 4.3.5 | MIT |
 | lucide-react (icons) | 1.70.0 | ISC |
 | React / React DOM | 19.3.1 | MIT |
-| @vis.gl/react-google-maps | 1.10.2 | Apache-2.0 |
+| @vis.gl/react-google-maps | 1.10.2 | MIT |
 | Firebase JS SDK | 13.2.0 | Apache-2.0 |
 | TypeScript (dev) | 5.9.3 | Apache-2.0 |
 | Vitest (dev) | 4.1.12 | MIT |
@@ -30,6 +30,13 @@ source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check 
 | pytest (dev) | 9.2.0 | MIT |
 | Ruff (dev) | 0.17.4 | MIT |
 
+## Libraries: Firestore rules tests (`rules-tests/`, dev only)
+| Name | Version | License |
+| --- | --- | --- |
+| @firebase/rules-unit-testing | 5.0.2 | Apache-2.0 |
+| Firebase JS SDK | 12.19.0 | Apache-2.0 |
+| Vitest | 5.1.0 | MIT |
+
 ## Fonts, data, content, images
 | Item | Type | License / terms |
 | --- | --- | --- |
@@ -39,5 +46,4 @@ source or asset we use (PLAN.md 15). Versions as installed on 2026-11-09. Check 
 | YouTube videos | Content | YouTube API Services Terms (official embedded player only) |
 | Gemini (Vertex AI) | Service | Google Cloud Terms of Service |
 | Start-screen image `web/public/dusk.webp` | Image | Original image made by Team Kyu_cat for Tripi (not copied from a third party). Released with this repo under the MIT License. |
-| Google Cloud architecture icons | Image | Google (cloud.google.com/icons) |
 | README screenshots `docs/images/*.jpg` | Image | Our own app screenshots. Map imagery: Map data ©2026 Google (Google Maps Platform attribution) |
