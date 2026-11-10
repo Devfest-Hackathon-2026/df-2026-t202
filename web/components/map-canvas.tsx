@@ -100,6 +100,11 @@ export function MapCanvas({
   );
 }
 
+/**
+ * "All days" is an overview: every day in its own colour, thin, and no line between days
+ * (nobody travels the last-stop-to-first-stop jump as a route). One day selected is the detail:
+ * only that day, bold, on a white casing; the other days are hidden.
+ */
 function Routes({
   days,
   activeDay,
@@ -111,66 +116,51 @@ function Routes({
   selected?: MapSelection;
   onSelect?: (selection: MapSelection) => void;
 }) {
+  const focused = activeDay != null;
+  const shown = focused ? days.filter((d) => d.day === activeDay) : days;
+  const weight = focused ? 6 : 4;
+
   return (
     <>
-      {days.map((day, dayIndex) => {
-        const dimmed = activeDay != null && activeDay !== day.day;
+      {shown.map((day) => {
         const color = dayColor(day.day);
-        const weight = dimmed ? 3 : 5;
-        const opacity = dimmed ? 0.2 : 0.9;
-        // The plan has no leg from the last stop of a day to the first stop of the next one
-        // (PLAN.md 7.3); that overnight move is drawn in the leaving day's colour, so the trip
-        // reads as one continuous line.
-        const previousDay = days[dayIndex - 1];
-        const from = previousDay?.stops[previousDay.stops.length - 1];
-        const to = day.stops[0];
-        const showOvernight = activeDay == null;
-
         return (
           <div key={day.day}>
-            {showOvernight && from && to && located(from) && located(to) && (
-              <Polyline
-                path={[
-                  { lat: from.lat, lng: from.lng },
-                  { lat: to.lat, lng: to.lng },
-                ]}
-                strokeColor={dayColor(previousDay.day)}
-                strokeWeight={5}
-                strokeOpacity={0.9}
-                zIndex={1}
-              />
-            )}
             {day.stops.map((stop, index) => {
-              const leg = stop.leg;
               const next = day.stops[index + 1];
-              if (!leg) return null;
+              if (!stop.leg) return null;
               // A real route from the Routes API follows the road. Train, ferry and flight legs
               // have none (Routes has no transit data for Japan), so they are a straight line.
-              if (leg.polyline) {
-                return (
+              const line = stop.leg.polyline
+                ? { encodedPath: stop.leg.polyline }
+                : located(stop) && next && located(next)
+                  ? {
+                      path: [
+                        { lat: stop.lat, lng: stop.lng },
+                        { lat: next.lat, lng: next.lng },
+                      ],
+                    }
+                  : null;
+              if (!line) return null;
+              return (
+                <div key={`${day.day}-${index}`}>
+                  {focused && (
+                    <Polyline
+                      {...line}
+                      strokeColor="#ffffff"
+                      strokeWeight={weight + 4}
+                      strokeOpacity={0.9}
+                      zIndex={1}
+                    />
+                  )}
                   <Polyline
-                    key={`${day.day}-${index}`}
-                    encodedPath={leg.polyline}
+                    {...line}
                     strokeColor={color}
                     strokeWeight={weight}
-                    strokeOpacity={opacity}
-                    zIndex={dimmed ? 1 : 2}
+                    strokeOpacity={0.9}
+                    zIndex={2}
                   />
-                );
-              }
-              if (!located(stop) || !next || !located(next)) return null;
-              return (
-                <Polyline
-                  key={`${day.day}-${index}`}
-                  path={[
-                    { lat: stop.lat, lng: stop.lng },
-                    { lat: next.lat, lng: next.lng },
-                  ]}
-                  strokeColor={color}
-                  strokeWeight={weight}
-                  strokeOpacity={opacity}
-                  zIndex={dimmed ? 1 : 2}
-                />
+                </div>
               );
             })}
             {day.stops.map((stop, index) => {
@@ -181,8 +171,7 @@ function Routes({
                   key={stop.id}
                   position={{ lat: stop.lat, lng: stop.lng }}
                   title={stop.name}
-                  opacity={dimmed ? 0.35 : 1}
-                  zIndex={isSelected ? 1000 : dimmed ? 1 : 100 - index}
+                  zIndex={isSelected ? 1000 : 100 - index}
                   label={{
                     text: String(index + 1),
                     color: '#ffffff',
