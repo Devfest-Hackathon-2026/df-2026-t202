@@ -17,6 +17,31 @@ export function dayColor(day: number): string {
   return DAY_COLORS[(day - 1) % DAY_COLORS.length];
 }
 
+/**
+ * A pale, quiet base map so the coloured day routes are what you see first:
+ * no points of interest or transit icons, soft land and water, lighter labels and roads.
+ */
+const QUIET_MAP: google.maps.MapTypeStyle[] = [
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'landscape', stylers: [{ color: '#eeeeea' }] },
+  { featureType: 'water', stylers: [{ color: '#cfe1ea' }] },
+  {
+    featureType: 'road',
+    elementType: 'geometry',
+    stylers: [{ color: '#ffffff' }, { lightness: 20 }],
+  },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#f6f6f2' }] },
+  {
+    featureType: 'administrative',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#d6d6d0' }],
+  },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a86' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }, { weight: 3 }] },
+];
+
 export type MapSelection = { day: number; index: number } | null;
 
 function located(stop: Stop): stop is Stop & { lat: number; lng: number } {
@@ -60,6 +85,7 @@ export function MapCanvas({
         defaultZoom={DEFAULT_ZOOM}
         gestureHandling="greedy"
         disableDefaultUI
+        styles={QUIET_MAP}
         style={{ width: '100%', height: '100%' }}
       >
         <Routes days={days} activeDay={activeDay} selected={selected} onSelect={onSelect} />
@@ -90,56 +116,48 @@ function Routes({
       {days.map((day, dayIndex) => {
         const dimmed = activeDay != null && activeDay !== day.day;
         const color = dayColor(day.day);
+        const weight = dimmed ? 3 : 5;
+        const opacity = dimmed ? 0.2 : 0.9;
         // The plan has no leg from the last stop of a day to the first stop of the next one
-        // (PLAN.md 7.3), so the overnight move is drawn dashed, in the arriving day's colour.
+        // (PLAN.md 7.3); that overnight move is drawn in the leaving day's colour, so the trip
+        // reads as one continuous line.
         const previousDay = days[dayIndex - 1];
         const from = previousDay?.stops[previousDay.stops.length - 1];
         const to = day.stops[0];
+        const showOvernight = activeDay == null;
 
         return (
           <div key={day.day}>
-            {/* One line per leg. The Routes API gives a polyline for most of them; a ferry or a
-                flight has none (leg.estimate), so those are drawn as a dashed straight line
-                rather than left as a gap in the route. */}
-            {from && to && located(from) && located(to) && (
+            {showOvernight && from && to && located(from) && located(to) && (
               <Polyline
                 path={[
                   { lat: from.lat, lng: from.lng },
                   { lat: to.lat, lng: to.lng },
                 ]}
-                strokeOpacity={0}
-                icons={[
-                  {
-                    icon: {
-                      path: 'M 0,-1 0,1',
-                      strokeColor: color,
-                      strokeOpacity: dimmed ? 0.25 : 0.7,
-                      strokeWeight: dimmed ? 2 : 3,
-                      scale: 3,
-                    },
-                    offset: '0',
-                    repeat: '14px',
-                  },
-                ]}
+                strokeColor={dayColor(previousDay.day)}
+                strokeWeight={5}
+                strokeOpacity={0.9}
+                zIndex={1}
               />
             )}
             {day.stops.map((stop, index) => {
               const leg = stop.leg;
               const next = day.stops[index + 1];
               if (!leg) return null;
-
+              // A real route from the Routes API follows the road. Train, ferry and flight legs
+              // have none (Routes has no transit data for Japan), so they are a straight line.
               if (leg.polyline) {
                 return (
                   <Polyline
                     key={`${day.day}-${index}`}
                     encodedPath={leg.polyline}
                     strokeColor={color}
-                    strokeWeight={dimmed ? 2 : 4}
-                    strokeOpacity={dimmed ? 0.25 : 0.9}
+                    strokeWeight={weight}
+                    strokeOpacity={opacity}
+                    zIndex={dimmed ? 1 : 2}
                   />
                 );
               }
-
               if (!located(stop) || !next || !located(next)) return null;
               return (
                 <Polyline
@@ -148,49 +166,41 @@ function Routes({
                     { lat: stop.lat, lng: stop.lng },
                     { lat: next.lat, lng: next.lng },
                   ]}
-                  strokeOpacity={0}
-                  icons={[
-                    {
-                      icon: {
-                        path: 'M 0,-1 0,1',
-                        strokeColor: color,
-                        strokeOpacity: dimmed ? 0.3 : 0.9,
-                        strokeWeight: dimmed ? 2 : 3,
-                        scale: 3,
-                      },
-                      offset: '0',
-                      repeat: '14px',
-                    },
-                  ]}
+                  strokeColor={color}
+                  strokeWeight={weight}
+                  strokeOpacity={opacity}
+                  zIndex={dimmed ? 1 : 2}
                 />
               );
             })}
-            {day.stops.map((stop, index) =>
-              located(stop) ? (
+            {day.stops.map((stop, index) => {
+              if (!located(stop)) return null;
+              const isSelected = selected?.day === day.day && selected.index === index;
+              return (
                 <Marker
                   key={stop.id}
                   position={{ lat: stop.lat, lng: stop.lng }}
                   title={stop.name}
                   opacity={dimmed ? 0.35 : 1}
-                  zIndex={selected?.day === day.day && selected.index === index ? 10 : 1}
+                  zIndex={isSelected ? 1000 : dimmed ? 1 : 100 - index}
                   label={{
                     text: String(index + 1),
                     color: '#ffffff',
-                    fontSize: '11px',
+                    fontSize: isSelected ? '13px' : '11px',
                     fontWeight: '700',
                   }}
                   icon={{
                     path: google.maps.SymbolPath.CIRCLE,
-                    scale: selected?.day === day.day && selected.index === index ? 14 : 11,
+                    scale: isSelected ? 15 : 11,
                     fillColor: color,
                     fillOpacity: 1,
                     strokeColor: '#ffffff',
-                    strokeWeight: 2.5,
+                    strokeWeight: isSelected ? 3.5 : 2.5,
                   }}
                   onClick={() => onSelect?.({ day: day.day, index })}
                 />
-              ) : null,
-            )}
+              );
+            })}
           </div>
         );
       })}
