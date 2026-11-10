@@ -34,7 +34,6 @@ SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 CACHE_FOR = timedelta(days=7)
 CACHE_EMPTY_FOR = timedelta(days=1)  # "no videos" may change soon (new uploads, a better name next run)
-CACHE_VERSION = 2  # bump to re-search every place when the way we pick videos changes (2: travel ranking, D12)
 MAX_VIDEOS = 3
 SEARCH_RESULTS = 10  # a search costs 100 quota units whatever maxResults is, so take more to rank
 # A travel sign in a video's title, description or tags; matched in lower case, so "#OsakaTravel" counts.
@@ -63,15 +62,13 @@ async def cached(place_id: str) -> list[str] | None:
         return None
     if not doc or not doc.get("fetchedAt"):
         return None
-    if doc.get("v") != CACHE_VERSION:
-        return None  # picked the old way: search again
     ids = doc.get("videoIds", [])
     return ids if firestore.now() - doc["fetchedAt"] < (CACHE_FOR if ids else CACHE_EMPTY_FOR) else None
 
 
 async def _save(place_id: str, query: str, ids: list[str]) -> None:
     try:
-        await firestore.cache_set("videos", place_id, {"query": query, "videoIds": ids, "v": CACHE_VERSION})
+        await firestore.cache_set("videos", place_id, {"query": query, "videoIds": ids})
     except Exception as e:
         log.warning(json.dumps({"event": "videos_cache_error", "op": "set", "error": type(e).__name__}))
 

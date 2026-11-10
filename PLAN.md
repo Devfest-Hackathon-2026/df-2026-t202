@@ -435,7 +435,7 @@ Plan quality comes before speed: the Planner alone takes about 30 s, so a plan t
 - One `videos.list` call (1 unit) drops Made for Kids videos and ranks the rest: travel videos first (a travel word or
   hashtag such as `#japantravel`, `#旅行`, `観光` in the title, description or tags), then the trip-language search, then
   the most views. Videos without a travel sign are kept, ranked last (D12).
-- Cache by `placeId` for 7 days in `cache_videos/{placeId}` (with a version `v`; a new way of picking re-searches).
+- Cache by `placeId` for 7 days in `cache_videos/{placeId}`. Shorts cached before the travel ranking stay until they expire (D12).
 - The default quota allows about 100 searches per day. Pre-cache all demo spots before recording.
 - When nothing is found or YouTube is rate-limited, the plan still loads without videos; the place panel shows a Places photo when available. No YouTube search links. A later successful plan generation shows its returned videos normally.
 

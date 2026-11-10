@@ -91,15 +91,14 @@ def test_one_search_is_enough_when_it_finds_three(world):
 
 def test_stale_cache_searches_again(world):
     old = firestore.now() - timedelta(days=8)
-    world["cache"][("videos", "p1")] = {"videoIds": ["old"], "fetchedAt": old, "v": youtube.CACHE_VERSION}
+    world["cache"][("videos", "p1")] = {"videoIds": ["old"], "fetchedAt": old}
     assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ["v5", "v2"]
 
 
-def test_cache_from_the_old_way_of_picking_searches_again(world):
-    world["cache"][("videos", "p1")] = {"videoIds": ["old"], "fetchedAt": firestore.now()}  # no version: before D12
-    assert asyncio.run(youtube.cached("p1")) is None
-    assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ["v5", "v2"]
-    assert world["cache"][("videos", "p1")]["v"] == youtube.CACHE_VERSION
+def test_shorts_cached_before_the_travel_ranking_are_still_used(world):
+    world["cache"][("videos", "p1")] = {"videoIds": ["old"], "fetchedAt": firestore.now()}  # before D12
+    assert asyncio.run(youtube.shorts_for("p1", "高千穂峡", "JP")) == ["old"]
+    assert world["calls"] == []  # no search: saves the quota
 
 
 def test_travel_videos_come_first_then_the_trip_language_then_views(world, monkeypatch):
@@ -151,7 +150,7 @@ def test_no_results_are_cached_for_one_day(world):
     world["cache"][("videos", "p1")]["fetchedAt"] = firestore.now() - timedelta(days=2)
     assert asyncio.run(youtube.cached("p1")) is None  # "no videos" is retried after a day
     two_days = firestore.now() - timedelta(days=2)
-    world["cache"][("videos", "p2")] = {"videoIds": ["v"], "fetchedAt": two_days, "v": youtube.CACHE_VERSION}
+    world["cache"][("videos", "p2")] = {"videoIds": ["v"], "fetchedAt": two_days}
     assert asyncio.run(youtube.cached("p2")) == ["v"]  # real videos are kept for 7 days
 
 
